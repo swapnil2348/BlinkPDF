@@ -18,27 +18,44 @@
 <section class="max-w-7xl mx-auto px-4 py-8">
 
   <h1 class="text-3xl font-bold mb-4">AI PDF Editor (PRO)</h1>
+  <p class="text-gray-600 max-w-2xl mb-4">
+    Upload, edit, annotate, fill forms, add images, run OCR and export your PDF files directly in your browser.
+  </p>
 
   <!-- Upload -->
   <div class="bg-white p-6 rounded-xl shadow border mb-6">
-    <form onsubmit="event.preventDefault(); loadPDF()" class="flex gap-4">
-      <input type="file" id="pdfUpload" accept="application/pdf" class="border p-2 rounded" required>
-      <button type="button" onclick="loadPDF()" class="bg-violet-600 text-white px-4 py-2 rounded">
+    <form onsubmit="event.preventDefault(); loadPDF()" class="flex flex-wrap gap-4 items-center">
+      <input
+        type="file"
+        id="pdfUpload"
+        accept="application/pdf"
+        class="border p-2 rounded w-full sm:w-auto"
+        required
+      >
+      <button
+        type="button"
+        onclick="loadPDF()"
+        class="bg-violet-600 text-white px-4 py-2 rounded"
+      >
         Upload & Start
       </button>
     </form>
     <p id="status" class="text-sm mt-2 text-gray-600"></p>
   </div>
 
-  <div class="grid grid-cols-12 gap-4">
+  <!-- Main layout -->
+  <div class="grid grid-cols-12 gap-4 md:flex-nowrap flex-wrap">
 
     <!-- Thumbnails -->
-    <div class="col-span-2 bg-white border rounded-xl p-3 overflow-y-auto max-h-[600px]" id="thumbs">
+    <div
+      class="col-span-12 md:col-span-2 bg-white border rounded-xl p-3 overflow-y-auto max-h-[600px]"
+      id="thumbs"
+    >
       <p class="text-xs text-gray-400 text-center">No file loaded</p>
     </div>
 
     <!-- Main editor -->
-    <div class="col-span-10">
+    <div class="col-span-12 md:col-span-10">
 
       <!-- Toolbar -->
       <div class="bg-white p-3 mb-3 rounded-xl shadow border flex gap-2 flex-wrap">
@@ -54,6 +71,8 @@
         <button class="tool-btn" onclick="zoomOut()">🔍 -</button>
         <button class="tool-btn" onclick="zoomIn()">🔎 +</button>
         <button class="tool-btn" onclick="toggleCropMode()">✂ Crop</button>
+        <!-- Reset current page -->
+        <button class="tool-btn" onclick="resetPage()">♻ Reset page</button>
 
         <button class="tool-btn bg-indigo-600 text-white" onclick="saveFullPDF()">💾 Save FULL PDF</button>
       </div>
@@ -91,14 +110,20 @@
       <!-- Signature pad -->
       <div id="signBox" class="hidden bg-white border p-3 rounded mb-3">
         <canvas id="signCanvas" class="border bg-white w-full h-40"></canvas>
-        <button onclick="addSignatureToPDF()"
-          class="bg-green-600 text-white w-full mt-2 rounded p-1">
-          Add Signature to PDF
-        </button>
+        <div class="flex gap-2 mt-2">
+          <button onclick="clearSignature()"
+                  class="bg-gray-200 text-gray-800 w-1/2 rounded p-1 text-sm">
+            Clear
+          </button>
+          <button onclick="addSignatureToPDF()"
+                  class="bg-green-600 text-white w-1/2 rounded p-1 text-sm">
+            Add Signature to PDF
+          </button>
+        </div>
       </div>
 
       <!-- Canvas -->
-      <div class="bg-gray-100 p-6 flex justify-center rounded-xl">
+      <div class="bg-gray-100 p-4 flex justify-center rounded-xl overflow-x-auto">
         <div class="bg-white shadow-xl p-4 rounded-xl">
           <canvas id="pdf-canvas"></canvas>
         </div>
@@ -117,7 +142,7 @@
 
   <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
 
-    <!-- ✅ 10 RANDOM NORMAL TOOLS (SAFE METHOD) -->
+    <!-- 10 RANDOM TOOLS -->
     {% for tool in random_tools %}
       <a href="{{ url_for('tool_page', slug=tool.slug) }}"
          class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm hover:shadow-lg transition group">
@@ -138,8 +163,7 @@
       </a>
     {% endfor %}
 
-
-    <!-- ✅ ALL AI TOOLS -->
+    <!-- ALL AI TOOLS -->
     {% for tool in ai_tools %}
     <a href="{{ tool.url }}"
        class="bg-gradient-to-br from-violet-600 to-indigo-600 rounded-xl p-4 shadow-sm hover:shadow-lg transition text-white">
@@ -191,6 +215,21 @@ let deleteMode = false;
 let cropMode = false;
 let cropRect = null;
 let selectedTextObj = null;
+let isSaving = false;
+
+/* Update status helper */
+function setStatus(msg){
+  const el = document.getElementById("status");
+  if(el) el.textContent = msg || "";
+}
+
+/* Reset current page to original state */
+function resetPage(){
+  if(pdfDoc){
+    setStatus("Resetting page...");
+    showPage(currentPage);
+  }
+}
 
 /* Keep objects inside the page */
 fabricCanvas.on('object:moving', function(e){
@@ -234,16 +273,27 @@ fabricCanvas.on("selection:updated", function(e){
 /* LOAD PDF */
 async function loadPDF(){
   const file = document.getElementById("pdfUpload").files[0];
-  if(!file) return alert("Select a PDF");
+  if(!file){
+    alert("Please select a PDF first");
+    return;
+  }
+
+  setStatus("Loading PDF...");
 
   const reader = new FileReader();
   reader.onload = async function(e){
-    const bytes = new Uint8Array(e.target.result);
-    pdfDoc = await pdfjsLib.getDocument({data: bytes}).promise;
-    document.getElementById("status").innerText = "PDF Loaded ✅";
-    currentPage = 1;
-    await showPage(currentPage);
-    generateThumbs();
+    try{
+      const bytes = new Uint8Array(e.target.result);
+      pdfDoc = await pdfjsLib.getDocument({data: bytes}).promise;
+      currentPage = 1;
+      await showPage(currentPage);
+      await generateThumbs();
+      setStatus("PDF Loaded ✅");
+    }catch(err){
+      console.error(err);
+      setStatus("❌ Failed to load PDF");
+      alert("Error loading PDF");
+    }
   };
   reader.readAsArrayBuffer(file);
 }
@@ -254,6 +304,7 @@ async function showPage(n){
   if (!pdfDoc || isRendering) return;
   isRendering = true;
   currentPage = n;
+  setStatus("Rendering page " + n + "...");
 
   try {
     const page = await pdfDoc.getPage(n);
@@ -337,6 +388,11 @@ async function showPage(n){
         backgroundColor:"transparent"
       });
 
+      // Keep alignment – prevent weird scaling/rotation
+      txt.lockScalingX = true;
+      txt.lockScalingY = true;
+      txt.lockRotation = true;
+
       txt.originalBg = eraseBox;
 
       fabricCanvas.add(eraseBox);
@@ -344,11 +400,11 @@ async function showPage(n){
     });
 
     fabricCanvas.renderAll();
-    document.getElementById("status").innerText = "Page " + n + " loaded ✅";
+    setStatus("Page " + n + " loaded ✅");
 
   } catch (err) {
     console.error(err);
-    document.getElementById("status").innerText = "❌ Error loading page";
+    setStatus("❌ Error loading page");
   }
 
   isRendering = false;
@@ -358,6 +414,8 @@ async function showPage(n){
 async function generateThumbs(){
   const thumbs = document.getElementById("thumbs");
   thumbs.innerHTML = "";
+
+  if(!pdfDoc) return;
 
   for(let i=1;i<=pdfDoc.numPages;i++){
     const page = await pdfDoc.getPage(i);
@@ -397,7 +455,7 @@ function toggleCropMode(){
     fabricCanvas.clipPath = null;
     cropRect = null;
     fabricCanvas.renderAll();
-    document.getElementById("status").innerText = "Crop disabled";
+    setStatus("Crop disabled");
     return;
   }
 
@@ -422,10 +480,10 @@ function toggleCropMode(){
 
   fabricCanvas.clipPath = cropRect;
   fabricCanvas.renderAll();
-  document.getElementById("status").innerText = "Crop mode: drag green box to set area";
+  setStatus("Crop mode: drag green box to set area");
 }
 
-/* AI REWRITE (local backend) */
+/* AI REWRITE (backend: /ai/rewrite) */
 function openRewriteBox(){
   document.getElementById("rewriteBox").classList.remove("hidden");
 }
@@ -433,19 +491,27 @@ function rewriteText(){
   const txt = document.getElementById("rewriteInput").value;
   if(!txt.trim()) return alert("Enter text");
 
+  setStatus("Asking AI to rewrite text...");
+
   fetch("/ai/rewrite",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
     body: JSON.stringify({ text: txt })
   }).then(r=>r.json())
    .then(data=>{
-      const t = new fabric.Textbox(data.result || "",{
+      const result = data.result || "";
+      const t = new fabric.Textbox(result,{
         left:100,
         top:100,
         fontSize:18,
         width:300
       });
       fabricCanvas.add(t);
+      setStatus("AI rewrite added to page ✅");
+    }).catch(err=>{
+      console.error(err);
+      setStatus("❌ AI rewrite failed");
+      alert("AI rewrite error");
     });
 }
 
@@ -459,12 +525,15 @@ function replaceTextAll(){
 
   if(!f) return;
 
+  let count = 0;
   fabricCanvas.getObjects().forEach(o=>{
-    if((o.type === "textbox" || o.type === "i-text") && o.text.includes(f)){
+    if((o.type === "textbox" || o.type === "i-text") && o.text && o.text.includes(f)){
       o.text = o.text.split(f).join(r);
+      count++;
     }
   });
   fabricCanvas.renderAll();
+  setStatus(`Replaced "${f}" in ${count} block(s).`);
 }
 
 /* DELETE TEXT MODE */
@@ -476,6 +545,7 @@ fabricCanvas.on("mouse:down", function(opt){
   if(deleteMode && opt.target){
     fabricCanvas.remove(opt.target);
     deleteMode = false;
+    setStatus("Text block deleted");
   }
 });
 
@@ -504,6 +574,7 @@ function applyParagraphEdit(){
   if(!selectedTextObj) return;
   selectedTextObj.text = document.getElementById("paraInput").value;
   fabricCanvas.renderAll();
+  setStatus("Paragraph updated");
 }
 
 /* SIGNATURE */
@@ -514,8 +585,10 @@ let drawingSign = false;
 function startSignature(){
   document.getElementById("signBox").classList.remove("hidden");
 
+  // Mouse
   signCanvas.onmousedown = () => { drawingSign = true; signCtx.beginPath(); };
   signCanvas.onmouseup = () => { drawingSign = false; };
+  signCanvas.onmouseleave = () => { drawingSign = false; };
   signCanvas.onmousemove = e => {
     if(!drawingSign) return;
     signCtx.lineWidth = 2;
@@ -524,22 +597,65 @@ function startSignature(){
   };
 }
 
+/* Touch support for signature (mobile) */
+signCanvas.addEventListener("touchstart", e => {
+  e.preventDefault();
+  drawingSign = true;
+  signCtx.beginPath();
+});
+signCanvas.addEventListener("touchend", e => {
+  e.preventDefault();
+  drawingSign = false;
+});
+signCanvas.addEventListener("touchcancel", e => {
+  e.preventDefault();
+  drawingSign = false;
+});
+signCanvas.addEventListener("touchmove", e => {
+  e.preventDefault();
+  if(!drawingSign) return;
+  const t = e.touches[0];
+  const rect = signCanvas.getBoundingClientRect();
+  const x = t.clientX - rect.left;
+  const y = t.clientY - rect.top;
+  signCtx.lineWidth = 2;
+  signCtx.lineTo(x, y);
+  signCtx.stroke();
+});
+
+function clearSignature(){
+  signCtx.clearRect(0,0,signCanvas.width,signCanvas.height);
+}
+
 function addSignatureToPDF(){
   const data = signCanvas.toDataURL();
   fabric.Image.fromURL(data, img=>{
     img.set({ left:150, top:150, scaleX:0.5, scaleY:0.5 });
     fabricCanvas.add(img);
+    setStatus("Signature added to page");
   });
-  signCtx.clearRect(0,0,signCanvas.width,signCanvas.height);
+  clearSignature();
   document.getElementById("signBox").classList.add("hidden");
 }
 
 /* OCR */
 async function runOCR(){
-  const img = document.getElementById("pdf-canvas").toDataURL("image/png");
-  const { data } = await Tesseract.recognize(img,"eng");
-  const t = new fabric.Textbox(data.text || "",{left:50,top:50,fontSize:14,width:400});
-  fabricCanvas.add(t);
+  if(!pdfDoc){
+    alert("Load a PDF first");
+    return;
+  }
+  try{
+    setStatus("Running OCR (this can take a moment)...");
+    const img = document.getElementById("pdf-canvas").toDataURL("image/png");
+    const { data } = await Tesseract.recognize(img,"eng");
+    const t = new fabric.Textbox(data.text || "",{left:50,top:50,fontSize:14,width:400});
+    fabricCanvas.add(t);
+    setStatus("OCR complete — text added to page ✅");
+  }catch(err){
+    console.error(err);
+    setStatus("❌ OCR failed");
+    alert("OCR error");
+  }
 }
 
 /* SAVE FULL PDF (visual) – respects crop & zoom */
@@ -549,38 +665,52 @@ async function saveFullPDF(){
     alert("No PDF loaded");
     return;
   }
+  if(isSaving) return;
+  isSaving = true;
+  setStatus("Rendering all pages to PDF...");
 
-  const newPdf = await PDFLib.PDFDocument.create();
+  try{
+    const newPdf = await PDFLib.PDFDocument.create();
 
-  for(let i=1;i<=pdfDoc.numPages;i++){
+    for(let i=1;i<=pdfDoc.numPages;i++){
 
-    await showPage(i);
+      await showPage(i);
 
-    const dataUrl = fabricCanvas.toDataURL({
-      format: "png",
-      multiplier: 2
-    });
+      const dataUrl = fabricCanvas.toDataURL({
+        format: "png",
+        multiplier: 2
+      });
 
-    const imageBytes = await fetch(dataUrl).then(res => res.arrayBuffer());
-    const pngImage = await newPdf.embedPng(imageBytes);
+      const imageBytes = await fetch(dataUrl).then(res => res.arrayBuffer());
+      const pngImage = await newPdf.embedPng(imageBytes);
 
-    const page = newPdf.addPage([fabricCanvas.width, fabricCanvas.height]);
+      const page = newPdf.addPage([fabricCanvas.width, fabricCanvas.height]);
 
-    page.drawImage(pngImage,{
-      x:0,
-      y:0,
-      width: page.getWidth(),
-      height: page.getHeight()
-    });
+      page.drawImage(pngImage,{
+        x:0,
+        y:0,
+        width: page.getWidth(),
+        height: page.getHeight()
+      });
+    }
+
+    const pdfBytes = await newPdf.save();
+    const blob = new Blob([pdfBytes], { type: "application/pdf" });
+
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "BlinkPDF_PERFECT.pdf";
+    a.click();
+
+    setStatus("Full edited PDF downloaded ✅");
+
+  }catch(err){
+    console.error(err);
+    setStatus("❌ Failed to export PDF");
+    alert("Error exporting PDF");
+  }finally{
+    isSaving = false;
   }
-
-  const pdfBytes = await newPdf.save();
-  const blob = new Blob([pdfBytes], { type: "application/pdf" });
-
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "BlinkPDF_PERFECT.pdf";
-  a.click();
 }
 
 </script>

@@ -301,21 +301,33 @@ def ai_summarizer():
     return jsonify({"summary": summary})
 
 
-@app.route("/ai/chat", methods=["POST"])
-def ai_chat():
+# ================== AI CHAT ROUTES ==================
+
+@app.route("/ai/chat/upload", methods=["POST"])
+def ai_chat_upload():
+    f = request.files.get("file")
+    filename = f"{uuid.uuid4().hex}_{secure_filename(f.filename)}"
+    path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+    f.save(path)
+    return jsonify({"filepath": path})
+
+
+@app.route("/ai/chat/ask", methods=["POST"])
+def ai_chat_ask():
     data = request.get_json()
     question = data.get("question")
     file_path = data.get("file")
 
-    if not question or not file_path:
-        return jsonify({"error": "Missing question or file"})
-
     import PyPDF2
-    reader = PyPDF2.PdfReader(open(file_path, "rb"))
-    text = "".join([p.extract_text() or "" for p in reader.pages])
 
-    answer = ask_ai(f"Answer:\n{text[:6000]}\nQ:{question}")
+    with open(file_path, "rb") as file:
+        reader = PyPDF2.PdfReader(file)
+        text = "".join([p.extract_text() or "" for p in reader.pages])
+
+    answer = ask_ai(f"Answer based on this PDF:\n{text[:7000]}\nQuestion: {question}")
+
     return jsonify({"answer": answer})
+
 
 
 @app.route("/ai/translate", methods=["POST"])
