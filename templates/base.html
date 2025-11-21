@@ -24,7 +24,6 @@
 
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-
   <script>
     tailwind.config = {
       darkMode: 'class'
@@ -38,39 +37,38 @@
 
 <nav class="bg-white dark:bg-gray-900 shadow sticky top-0 z-50">
   <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
-    
-    <!-- LOGO -->
-    <a href="{{ url_for('index') }}" class="text-xl font-bold tracking-wide">
+
+    <!-- LOGO (no gap issue now) -->
+    <a href="{{ url_for('index') }}" class="text-xl font-bold tracking-wide text-violet-600">
       BlinkPDF
     </a>
 
     <!-- DESKTOP MENU -->
     <div class="hidden md:flex space-x-6 text-sm font-semibold">
-      <a href="{{ url_for('index') }}" class="hover:text-violet-600">Home</a>
-      <a href="{{ url_for('ai_tools_page') }}" class="hover:text-violet-600">AI Tools</a>
-      <a href="{{ url_for('tool_page', slug='compress-pdf') }}" class="hover:text-violet-600">Compress PDF</a>
-      <a href="{{ url_for('tool_page', slug='merge-pdf') }}" class="hover:text-violet-600">Merge PDF</a>
+      <a href="{{ url_for('index') }}" class="text-violet-600 dark:text-white hover:text-violet-700">Home</a>
+      <a href="{{ url_for('ai_tools_page') }}" class="text-violet-600 dark:text-white hover:text-violet-700">AI Tools</a>
+      <a href="{{ url_for('tool_page', slug='compress-pdf') }}" class="text-violet-600 dark:text-white hover:text-violet-700">Compress PDF</a>
+      <a href="{{ url_for('tool_page', slug='merge-pdf') }}" class="text-violet-600 dark:text-white hover:text-violet-700">Merge PDF</a>
     </div>
 
-    <!-- MOBILE HAMBURGER -->
-    <button class="md:hidden" onclick="toggleMenu()">
+    <!-- MOBILE HAMBURGER (FIXED ID) -->
+    <button id="mobileBtn" class="md:hidden text-violet-600 dark:text-white" onclick="toggleMenu()">
       <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           d="M4 6h16M4 12h16M4 18h16"></path>
       </svg>
     </button>
+
   </div>
 
   <!-- MOBILE DROPDOWN -->
   <div id="mobileMenu" class="hidden md:hidden bg-white dark:bg-gray-900 px-4 pb-4">
-    <a href="{{ url_for('index') }}" class="block py-2">Home</a>
-    <a href="{{ url_for('ai_tools_page') }}" class="block py-2">AI Tools</a>
-    <a href="{{ url_for('tool_page', slug='compress-pdf') }}" class="block py-2">Compress PDF</a>
-    <a href="{{ url_for('tool_page', slug='merge-pdf') }}" class="block py-2">Merge PDF</a>
+    <a href="{{ url_for('index') }}" class="block py-2 text-violet-600 dark:text-white font-semibold">Home</a>
+    <a href="{{ url_for('ai_tools_page') }}" class="block py-2 text-violet-600 dark:text-white font-semibold">AI Tools</a>
+    <a href="{{ url_for('tool_page', slug='compress-pdf') }}" class="block py-2 text-violet-600 dark:text-white font-semibold">Compress PDF</a>
+    <a href="{{ url_for('tool_page', slug='merge-pdf') }}" class="block py-2 text-violet-600 dark:text-white font-semibold">Merge PDF</a>
   </div>
 </nav>
-
-
 
 <!-- MAIN -->
 <main class="max-w-7xl mx-auto px-4 py-8">
@@ -87,55 +85,48 @@
 
 <!-- Scripts -->
 <script>
-
-const btn = document.getElementById("mobileBtn");
-const menu = document.getElementById("mobileMenu");
-
-if(btn){
-  btn.onclick = () => {
-    menu.classList.toggle("hidden");
-  };
-}
-
-/* ===== DARK MODE ===== */
-const root = document.documentElement;
-const toggleBtn = document.getElementById('themeToggle');
-const toggleBtnMobile = document.getElementById('themeToggleMobile');
-const themeIcon = document.getElementById('themeIcon');
-
-function applyTheme(mode) {
-  if (mode === 'dark') {
-    root.classList.add('dark');
-    if(themeIcon) themeIcon.textContent = '☀️';
-  } else {
-    root.classList.remove('dark');
-    if(themeIcon) themeIcon.textContent = '🌙';
+  /* ===== MOBILE MENU FIX ===== */
+  function toggleMenu() {
+    const menu = document.getElementById("mobileMenu");
+    if (menu) {
+      menu.classList.toggle("hidden");
+    }
   }
-  localStorage.setItem('theme', mode);
-}
 
-const savedTheme = localStorage.getItem('theme') || 'light';
-applyTheme(savedTheme);
+  /* ===== DARK MODE ===== */
+  const root = document.documentElement;
+  const toggleBtn = document.getElementById('themeToggle');
+  const toggleBtnMobile = document.getElementById('themeToggleMobile');
+  const themeIcon = document.getElementById('themeIcon');
 
-if(toggleBtn){
-  toggleBtn.addEventListener('click', () => {
-    const next = root.classList.contains('dark') ? 'light' : 'dark';
-    applyTheme(next);
-  });
-}
+  function applyTheme(mode) {
+    if (mode === 'dark') {
+      root.classList.add('dark');
+      if(themeIcon) themeIcon.textContent = '☀️';
+    } else {
+      root.classList.remove('dark');
+      if(themeIcon) themeIcon.textContent = '🌙';
+    }
+    localStorage.setItem('theme', mode);
+  }
 
-if(toggleBtnMobile){
-  toggleBtnMobile.onclick = () => {
-    const next = root.classList.contains('dark') ? 'light' : 'dark';
-    applyTheme(next);
-  };
-}
-function toggleMenu() {
-  let menu = document.getElementById("mobileMenu");
-  menu.classList.toggle("hidden");
-}
+  const savedTheme = localStorage.getItem('theme') || 'light';
+  applyTheme(savedTheme);
+
+  if(toggleBtn){
+    toggleBtn.addEventListener('click', () => {
+      const next = root.classList.contains('dark') ? 'light' : 'dark';
+      applyTheme(next);
+    });
+  }
+
+  if(toggleBtnMobile){
+    toggleBtnMobile.onclick = () => {
+      const next = root.classList.contains('dark') ? 'light' : 'dark';
+      applyTheme(next);
+    };
+  }
 </script>
-
 
 {% block scripts %}{% endblock %}
 </body>
