@@ -39,7 +39,8 @@
   <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
 
     <!-- LOGO (NO GAP, NO GLOW) -->
-    <a href="{{ url_for('index') }}" class="text-xl font-extrabold text-violet-600 dark:text-violet-400">
+    <a href="{{ url_for('index') }}"
+   class="text-xl font-extrabold !text-violet-600 dark:!text-violet-400 tracking-normal">
       BlinkPDF
     </a>
 
@@ -60,7 +61,7 @@
     </div>
 
     <!-- MOBILE HAMBURGER -->
-    <button id="mobileBtn" class="md:hidden text-violet-600 dark:text-white">
+    <button id="mobileBtn"class="md:hidden text-violet-600 dark:text-white z-50 relative">
       <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M4 6h16M4 12h16M4 18h16"></path>
@@ -70,7 +71,7 @@
   </div>
 
   <!-- MOBILE DROPDOWN -->
-  <div id="mobileMenu" class="hidden md:hidden bg-white dark:bg-gray-900 px-4 pb-4">
+  <div id="mobileMenu"class="hidden md:hidden bg-white dark:bg-gray-900 px-4 pb-4 absolute top-full left-0 right-0 shadow-lg z-40">
     <a href="{{ url_for('index') }}" class="block py-2 text-violet-600 dark:text-white">Home</a>
     <a href="{{ url_for('ai_tools_page') }}" class="block py-2 text-violet-600 dark:text-white">AI Tools</a>
     <a href="{{ url_for('tool_page', slug='compress-pdf') }}" class="block py-2 text-violet-600 dark:text-white">Compress PDF</a>
@@ -97,10 +98,14 @@
 const btn = document.getElementById("mobileBtn");
 const menu = document.getElementById("mobileMenu");
 
-if(btn){
-  btn.addEventListener("click", () => {
-    menu.classList.toggle("hidden");
-  });
+if (btn && menu) {
+  btn.onclick = function () {
+    if (menu.classList.contains("hidden")) {
+      menu.classList.remove("hidden");
+    } else {
+      menu.classList.add("hidden");
+    }
+  };
 }
 
 /* ===== DARK MODE ===== */
