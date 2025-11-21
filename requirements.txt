@@ -1,0 +1,12 @@
+Flask
+PyMuPDF
+PyPDF2
+openpyxl
+pillow
+pytesseract
+python-docx
+python-pptx
+gunicorn
+requests
+reportlab
+werkzeug

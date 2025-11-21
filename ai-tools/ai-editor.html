@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>AI PDF Editor — BlinkPDF</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>AI PDF Editor (placeholder)</h1>
+    <p class="small">This is a frontend placeholder for an AI-powered PDF editor. It includes UI for uploading a PDF, selecting editing actions, and previewing pages. To enable real AI editing, wire the form to a backend endpoint that performs PDF edits (tools: OCR, text replace, redact, summarize, translate, reflow).</p>
+
+    <div class="tool">
+      <label><strong>Upload PDF</strong></label>
+      <input id="file" type="file" accept="application/pdf">
+      <div class="note">Tip: large PDFs may take long to process. The frontend sends the file to your server and receives back an edited PDF.</div>
+
+      <label style="display:block;margin-top:12px"><strong>Select action</strong></label>
+      <select id="action">
+        <option value="annotate">Annotate / Add notes</option>
+        <option value="replace">Find & replace text</option>
+        <option value="redact">Redact sensitive text</option>
+        <option value="ocr">Run OCR (image → text)</option>
+        <option value="summarize">Auto-summarize document</option>
+        <option value="translate">Translate document</option>
+      </select>
+
+      <div id="params" class="note"></div>
+
+      <button id="send">Send to AI (placeholder)</button>
+
+      <div id="preview" class="preview">No preview yet — when wired, the edited PDF or extracted text will appear here.</div>
+
+      <div class="note">How to wire: POST the file (multipart/form-data) to your backend at <code>/api/ai-edit</code>. Return edited PDF or JSON with text and preview thumbnails. See README-ai.md for suggested server-side flows.</div>
+    </div>
+  </div>
+
+<script>
+const params = document.getElementById('params');
+const action = document.getElementById('action');
+function updateParams(){
+  const a = action.value;
+  if(a === 'replace'){
+    params.innerHTML = '<label>Find: <input id="find" /></label><label>Replace: <input id="replace" /></label>';
+  } else if(a === 'annotate'){
+    params.innerHTML = '<label>Annotation text: <input id="annot" /></label>';
+  } else if(a === 'redact'){
+    params.innerHTML = '<label>Regex or phrase to redact: <input id="redactval" /></label>';
+  } else {
+    params.innerHTML = '';
+  }
+}
+action.addEventListener('change', updateParams);
+updateParams();
+
+document.getElementById('send').addEventListener('click', ()=>{
+  alert("This is a frontend placeholder. Implement your backend and change this to upload the file to your server endpoint (/api/ai-edit).");
+});
+</script>
+
+<!-- PDF Preview (Native Embed) -->
+<h2 style="margin-top:25px;font-size:18px">PDF Preview</h2>
+<div class="tool">
+  <div class="note">This preview uses the browser's built‑in PDF renderer (faster & works offline).</div>
+  <iframe id="pdfPreview" style="width:100%;height:600px;border:1px solid #ccc;border-radius:8px"></iframe>
+</div>
+
+<script>
+// Display selected PDF immediately
+document.getElementById('file').addEventListener('change', function(e){
+    const file = e.target.files[0];
+    if(!file){ return; }
+    const url = URL.createObjectURL(file);
+    document.getElementById('pdfPreview').src = url;
+});
+</script>
+
+</body>
+</html>

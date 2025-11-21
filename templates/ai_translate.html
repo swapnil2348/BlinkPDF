@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}AI PDF Translator - BlinkPDF{% endblock %}
+{% block seo_desc %}Translate the text content of your PDF into another language using your local AI model.{% endblock %}
+
+{% block content %}
+<section class="max-w-3xl mx-auto">
+  <div class="text-center mb-6">
+    <h1 class="text-2xl font-black text-slate-900 dark:text-slate-50">AI PDF Translator</h1>
+    <p class="text-sm text-slate-600 dark:text-slate-300 mt-1">
+      Upload a PDF and get a translated version of the extracted text.
+    </p>
+  </div>
+
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow">
+    <form id="trForm">
+      <div class="mb-3">
+        <label class="block text-sm font-semibold mb-1">Upload PDF</label>
+        <input type="file" id="trFile" name="file" accept="application/pdf"
+               class="w-full border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 bg-transparent">
+      </div>
+
+      <div class="mb-3">
+        <label class="block text-sm font-semibold mb-1">Target language</label>
+        <select id="trLang" name="language"
+                class="w-full border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 bg-transparent text-sm">
+          <option value="en">English</option>
+          <option value="hi">Hindi</option>
+          <option value="es">Spanish</option>
+          <option value="fr">French</option>
+          <option value="de">German</option>
+        </select>
+      </div>
+
+      <button type="submit"
+              class="w-full sm:w-auto bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">
+        Translate
+      </button>
+    </form>
+
+    <div id="trResult" class="mt-4 text-sm text-slate-800 dark:text-slate-100 whitespace-pre-wrap hidden"></div>
+  </div>
+</section>
+
+<!-- ================== RANDOM TOOL SUGGESTION GRID ================== -->
+<section class="max-w-7xl mx-auto mt-16">
+  <h2 class="text-xl font-black mb-5 text-slate-900 dark:text-slate-100">
+    Explore More Tools
+  </h2>
+
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+
+    <!-- ✅ 10 RANDOM NORMAL TOOLS (SAFE METHOD) -->
+    {% for tool in random_tools %}
+      <a href="{{ url_for('tool_page', slug=tool.slug) }}"
+         class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm hover:shadow-lg transition group">
+
+        <div class="flex flex-col items-start gap-2">
+          <img src="{{ url_for('static', filename='icons/' ~ tool.icon) }}"
+               class="h-10 w-10"
+               alt="{{ tool.title }}">
+
+          <h4 class="font-semibold text-sm text-slate-900 dark:text-white group-hover:text-violet-600">
+            {{ tool.title }}
+          </h4>
+
+          <p class="text-xs text-slate-500 leading-tight">
+            {{ tool.desc }}
+          </p>
+        </div>
+      </a>
+    {% endfor %}
+
+
+    <!-- ✅ ALL AI TOOLS -->
+    {% for tool in ai_tools %}
+    <a href="{{ tool.url }}"
+       class="bg-gradient-to-br from-violet-600 to-indigo-600 rounded-xl p-4 shadow-sm hover:shadow-lg transition text-white">
+
+      <div class="flex flex-col items-start gap-2">
+        <img src="{{ url_for('static', filename='icons/' ~ tool.icon) }}"
+             class="h-10 w-10 invert"
+             alt="{{ tool.title }}">
+
+        <h4 class="font-semibold text-sm">
+          {{ tool.title }}
+        </h4>
+
+        <p class="text-xs opacity-90">
+          {{ tool.desc }}
+        </p>
+      </div>
+    </a>
+    {% endfor %}
+
+  </div>
+</section>
+<!-- ========================================================= -->
+
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const trForm   = document.getElementById('trForm');
+  const trFile   = document.getElementById('trFile');
+  const trLang   = document.getElementById('trLang');
+  const trResult = document.getElementById('trResult');
+
+  trForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!trFile.files[0]) return;
+
+    const fd = new FormData();
+    fd.append("file", trFile.files[0]);
+    fd.append("language", trLang.value);
+
+    trResult.classList.remove("hidden");
+    trResult.textContent = "Translating with local AI…";
+
+    const res = await fetch("/ai/translate", {
+      method: "POST",
+      body: fd
+    });
+
+    try {
+      const data = await res.json();
+      trResult.textContent = data.preview || "No translation generated.";
+    } catch (e) {
+      trResult.textContent = "Error generating translation.";
+    }
+  });
+</script>
+{% endblock %}

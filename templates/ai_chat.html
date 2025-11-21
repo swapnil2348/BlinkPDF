@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Chat with PDF - BlinkPDF{% endblock %}
+{% block seo_desc %}Upload a PDF and ask questions about it using BlinkPDF's Chat with PDF tool.{% endblock %}
+
+{% block content %}
+<section class="max-w-4xl mx-auto">
+  <div class="text-center mb-6">
+    <h1 class="text-2xl font-black text-slate-900 dark:text-slate-50">Chat with PDF</h1>
+    <p class="text-sm text-slate-600 dark:text-slate-300 mt-1">
+      Upload a PDF and ask questions. Your local AI (Ollama) will answer based on the document content.
+    </p>
+  </div>
+
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow">
+    <div class="mb-4">
+      <label class="block text-sm font-semibold mb-1">Upload PDF</label>
+      <input type="file" id="chatPdf" accept="application/pdf"
+        class="w-full border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 bg-transparent">
+    </div>
+
+    <div class="border border-slate-200 dark:border-slate-800 rounded-xl h-64 overflow-y-auto p-3 mb-4 text-sm"
+      id="chatWindow"></div>
+
+    <div class="flex gap-2">
+      <input type="text" id="chatInput"
+        class="flex-1 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 bg-transparent text-sm"
+        placeholder="Ask something about the PDF...">
+      <button id="chatSend"
+        class="px-4 py-2 text-sm rounded-lg bg-violet-600 hover:bg-violet-700 text-white font-semibold">
+        Send
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- ================== RANDOM TOOL SUGGESTION GRID ================== -->
+<section class="max-w-7xl mx-auto mt-16">
+  <h2 class="text-xl font-black mb-5 text-slate-900 dark:text-slate-100">
+    Explore More Tools
+  </h2>
+
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+
+    <!-- ✅ 10 RANDOM NORMAL TOOLS (SAFE METHOD) -->
+    {% for tool in random_tools %}
+      <a href="{{ url_for('tool_page', slug=tool.slug) }}"
+         class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm hover:shadow-lg transition group">
+
+        <div class="flex flex-col items-start gap-2">
+          <img src="{{ url_for('static', filename='icons/' ~ tool.icon) }}"
+               class="h-10 w-10"
+               alt="{{ tool.title }}">
+
+          <h4 class="font-semibold text-sm text-slate-900 dark:text-white group-hover:text-violet-600">
+            {{ tool.title }}
+          </h4>
+
+          <p class="text-xs text-slate-500 leading-tight">
+            {{ tool.desc }}
+          </p>
+        </div>
+      </a>
+    {% endfor %}
+
+
+    <!-- ✅ ALL AI TOOLS -->
+    {% for tool in ai_tools %}
+    <a href="{{ tool.url }}"
+       class="bg-gradient-to-br from-violet-600 to-indigo-600 rounded-xl p-4 shadow-sm hover:shadow-lg transition text-white">
+
+      <div class="flex flex-col items-start gap-2">
+        <img src="{{ url_for('static', filename='icons/' ~ tool.icon) }}"
+             class="h-10 w-10 invert"
+             alt="{{ tool.title }}">
+
+        <h4 class="font-semibold text-sm">
+          {{ tool.title }}
+        </h4>
+
+        <p class="text-xs opacity-90">
+          {{ tool.desc }}
+        </p>
+      </div>
+    </a>
+    {% endfor %}
+
+  </div>
+</section>
+<!-- ========================================================= -->
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let uploadedFilePath=null;
+  const chatPdf=document.getElementById("chatPdf");
+  const chatWin=document.getElementById("chatWindow");
+  const chatInput=document.getElementById("chatInput");
+
+  function msg(role,text){
+    let d=document.createElement("div");
+    d.innerHTML=`<b>${role}:</b> ${text}`;
+    chatWin.appendChild(d);
+    chatWin.scrollTop=chatWin.scrollHeight;
+  }
+
+  chatPdf.onchange=async()=>{
+    const fd=new FormData();
+    fd.append("file",chatPdf.files[0]);
+    const r=await fetch("/ai/chat/upload",{method:"POST",body:fd});
+    const j=await r.json();
+    uploadedFilePath=j.filepath;
+    msg("System","PDF Uploaded ✅");
+  }
+
+  chatSend.onclick=async()=>{
+    if(!uploadedFilePath)return msg("System","Upload PDF first");
+    const q=chatInput.value;
+    msg("You",q);
+    const r=await fetch("/ai/chat/ask",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:q,file:uploadedFilePath})});
+    const a=await r.json();
+    msg("AI",a.answer);
+    chatInput.value="";
+  }
+</script>
+{% endblock %}

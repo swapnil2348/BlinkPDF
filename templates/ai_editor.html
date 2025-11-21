@@ -1,0 +1,587 @@
+{% extends "base.html" %}
+{% block seo_title %}AI PDF Editor - BlinkPDF{% endblock %}
+{% block seo_desc %}Edit, sign, OCR and modify PDFs online for free{% endblock %}
+
+{% block content %}
+<style>
+  .tool-btn{
+    padding:6px 14px;
+    border-radius:6px;
+    background:#f3f4f6;
+    font-size:14px;
+    border:1px solid #e5e7eb;
+  }
+  .tool-btn:hover{ background:#e5e7eb; }
+  .tool-btn.active { background:#7c3aed; color:white; }
+</style>
+
+<section class="max-w-7xl mx-auto px-4 py-8">
+
+  <h1 class="text-3xl font-bold mb-4">AI PDF Editor (PRO)</h1>
+
+  <!-- Upload -->
+  <div class="bg-white p-6 rounded-xl shadow border mb-6">
+    <form onsubmit="event.preventDefault(); loadPDF()" class="flex gap-4">
+      <input type="file" id="pdfUpload" accept="application/pdf" class="border p-2 rounded" required>
+      <button type="button" onclick="loadPDF()" class="bg-violet-600 text-white px-4 py-2 rounded">
+        Upload & Start
+      </button>
+    </form>
+    <p id="status" class="text-sm mt-2 text-gray-600"></p>
+  </div>
+
+  <div class="grid grid-cols-12 gap-4">
+
+    <!-- Thumbnails -->
+    <div class="col-span-2 bg-white border rounded-xl p-3 overflow-y-auto max-h-[600px]" id="thumbs">
+      <p class="text-xs text-gray-400 text-center">No file loaded</p>
+    </div>
+
+    <!-- Main editor -->
+    <div class="col-span-10">
+
+      <!-- Toolbar -->
+      <div class="bg-white p-3 mb-3 rounded-xl shadow border flex gap-2 flex-wrap">
+        <button class="tool-btn" onclick="openRewriteBox()">✨ Rewrite</button>
+        <button class="tool-btn" onclick="openFindReplace()">🔁 Find & Replace</button>
+        <button class="tool-btn" onclick="enableDeleteMode()">❌ Delete text</button>
+        <button class="tool-btn" onclick="addStickyNote()">💬 Comment</button>
+        <button class="tool-btn" onclick="openParagraphEditor()">¶ Paragraph editor</button>
+        <button class="tool-btn" onclick="startSignature()">✍ Draw Sign</button>
+        <button class="tool-btn" onclick="runOCR()">🔎 OCR</button>
+
+        <!-- Resize / crop -->
+        <button class="tool-btn" onclick="zoomOut()">🔍 -</button>
+        <button class="tool-btn" onclick="zoomIn()">🔎 +</button>
+        <button class="tool-btn" onclick="toggleCropMode()">✂ Crop</button>
+
+        <button class="tool-btn bg-indigo-600 text-white" onclick="saveFullPDF()">💾 Save FULL PDF</button>
+      </div>
+
+      <!-- AI Rewrite -->
+      <div id="rewriteBox" class="hidden bg-white p-3 border rounded mb-3">
+        <textarea id="rewriteInput" class="border w-full rounded p-2" rows="3"
+          placeholder="Enter text to rewrite..."></textarea>
+        <button onclick="rewriteText()"
+          class="bg-violet-600 text-white p-2 mt-2 rounded w-full">
+          Rewrite & Add
+        </button>
+      </div>
+
+      <!-- Find & Replace -->
+      <div id="findReplaceBox" class="hidden bg-white p-3 border rounded mb-3">
+        <input id="findText" class="border p-2 w-full mb-2" placeholder="Find text">
+        <input id="replaceText" class="border p-2 w-full mb-2" placeholder="Replace with">
+        <button onclick="replaceTextAll()"
+          class="bg-indigo-600 text-white px-3 py-1 rounded w-full">
+          Replace All
+        </button>
+      </div>
+
+      <!-- Paragraph editor -->
+      <div id="paraBox" class="hidden bg-white p-3 border rounded mb-3">
+        <p class="text-sm mb-1 text-gray-700">Edit paragraph of selected text:</p>
+        <textarea id="paraInput" class="border w-full rounded p-2" rows="4"></textarea>
+        <button onclick="applyParagraphEdit()"
+          class="bg-indigo-600 text-white px-3 py-1 rounded w-full mt-2">
+          Apply to selected text block
+        </button>
+      </div>
+
+      <!-- Signature pad -->
+      <div id="signBox" class="hidden bg-white border p-3 rounded mb-3">
+        <canvas id="signCanvas" class="border bg-white w-full h-40"></canvas>
+        <button onclick="addSignatureToPDF()"
+          class="bg-green-600 text-white w-full mt-2 rounded p-1">
+          Add Signature to PDF
+        </button>
+      </div>
+
+      <!-- Canvas -->
+      <div class="bg-gray-100 p-6 flex justify-center rounded-xl">
+        <div class="bg-white shadow-xl p-4 rounded-xl">
+          <canvas id="pdf-canvas"></canvas>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+<!-- ================== RANDOM TOOL SUGGESTION GRID ================== -->
+<section class="max-w-7xl mx-auto mt-16">
+  <h2 class="text-xl font-black mb-5 text-slate-900 dark:text-slate-100">
+    Explore More Tools
+  </h2>
+
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+
+    <!-- ✅ 10 RANDOM NORMAL TOOLS (SAFE METHOD) -->
+    {% for tool in random_tools %}
+      <a href="{{ url_for('tool_page', slug=tool.slug) }}"
+         class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm hover:shadow-lg transition group">
+
+        <div class="flex flex-col items-start gap-2">
+          <img src="{{ url_for('static', filename='icons/' ~ tool.icon) }}"
+               class="h-10 w-10"
+               alt="{{ tool.title }}">
+
+          <h4 class="font-semibold text-sm text-slate-900 dark:text-white group-hover:text-violet-600">
+            {{ tool.title }}
+          </h4>
+
+          <p class="text-xs text-slate-500 leading-tight">
+            {{ tool.desc }}
+          </p>
+        </div>
+      </a>
+    {% endfor %}
+
+
+    <!-- ✅ ALL AI TOOLS -->
+    {% for tool in ai_tools %}
+    <a href="{{ tool.url }}"
+       class="bg-gradient-to-br from-violet-600 to-indigo-600 rounded-xl p-4 shadow-sm hover:shadow-lg transition text-white">
+
+      <div class="flex flex-col items-start gap-2">
+        <img src="{{ url_for('static', filename='icons/' ~ tool.icon) }}"
+             class="h-10 w-10 invert"
+             alt="{{ tool.title }}">
+
+        <h4 class="font-semibold text-sm">
+          {{ tool.title }}
+        </h4>
+
+        <p class="text-xs opacity-90">
+          {{ tool.desc }}
+        </p>
+      </div>
+    </a>
+    {% endfor %}
+
+  </div>
+</section>
+<!-- ========================================================= -->
+
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+
+<script>
+let pdfDoc = null;
+let currentPage = 1;
+let baseWidth = 800;       // used for zoom / resize
+let isRendering = false;
+
+let fabricCanvas = new fabric.Canvas("pdf-canvas");
+let ctx = document.getElementById("pdf-canvas").getContext("2d");
+
+let deleteMode = false;
+let cropMode = false;
+let cropRect = null;
+let selectedTextObj = null;
+
+/* Keep objects inside the page */
+fabricCanvas.on('object:moving', function(e){
+  const obj = e.target;
+  obj.setCoords();
+
+  if (obj.left < 0) obj.left = 0;
+  if (obj.top < 0) obj.top = 0;
+
+  if (obj.left + obj.width * obj.scaleX > fabricCanvas.width){
+    obj.left = fabricCanvas.width - obj.width * obj.scaleX;
+  }
+  if (obj.top + obj.height * obj.scaleY > fabricCanvas.height){
+    obj.top = fabricCanvas.height - obj.height * obj.scaleY;
+  }
+});
+
+/* text:changed → remove original background box */
+fabricCanvas.on("text:changed", function(e) {
+  const obj = e.target;
+  if (obj.originalBg) {
+    fabricCanvas.remove(obj.originalBg);
+    obj.originalBg = null;
+  }
+});
+
+/* Track selected text for paragraph editor */
+fabricCanvas.on("selection:created", function(e){
+  const obj = e.selected[0];
+  if(obj && (obj.type === "i-text" || obj.type === "textbox")){
+    selectedTextObj = obj;
+  }
+});
+fabricCanvas.on("selection:updated", function(e){
+  const obj = e.selected[0];
+  if(obj && (obj.type === "i-text" || obj.type === "textbox")){
+    selectedTextObj = obj;
+  }
+});
+
+/* LOAD PDF */
+async function loadPDF(){
+  const file = document.getElementById("pdfUpload").files[0];
+  if(!file) return alert("Select a PDF");
+
+  const reader = new FileReader();
+  reader.onload = async function(e){
+    const bytes = new Uint8Array(e.target.result);
+    pdfDoc = await pdfjsLib.getDocument({data: bytes}).promise;
+    document.getElementById("status").innerText = "PDF Loaded ✅";
+    currentPage = 1;
+    await showPage(currentPage);
+    generateThumbs();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* SHOW PAGE – with font matching + background */
+async function showPage(n){
+
+  if (!pdfDoc || isRendering) return;
+  isRendering = true;
+  currentPage = n;
+
+  try {
+    const page = await pdfDoc.getPage(n);
+
+    const unscaled = page.getViewport({ scale: 1 });
+    const scale = baseWidth / unscaled.width;
+    const viewport = page.getViewport({ scale });
+
+    const canvas = document.getElementById("pdf-canvas");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+
+    fabricCanvas.setWidth(viewport.width);
+    fabricCanvas.setHeight(viewport.height);
+
+    // Reset crop when switching pages
+    fabricCanvas.clipPath = null;
+    cropRect = null;
+
+    // Draw PDF into canvas
+    await page.render({
+      canvasContext: ctx,
+      viewport: viewport
+    }).promise;
+
+    // Convert PDF → image for background
+    const bgImage = canvas.toDataURL("image/png");
+
+    // Clear fabric objects but keep rendered bitmap as bg of fabric
+    fabricCanvas.clear();
+
+    await new Promise(resolve => {
+      fabric.Image.fromURL(bgImage, function(img){
+        img.selectable = false;
+        img.evented = false;
+
+        img.scaleToWidth(fabricCanvas.width);
+        img.scaleToHeight(fabricCanvas.height);
+
+        fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas));
+        resolve();
+      });
+    });
+
+    // Extract text + styles for font matching
+    const textContent = await page.getTextContent();
+    const styles = textContent.styles || {};
+
+    textContent.items.forEach(t => {
+      if(!t.str.trim()) return;
+
+      const tx = pdfjsLib.Util.transform(viewport.transform, t.transform);
+      const x = tx[4];
+      const y = tx[5] - (t.height * scale);
+
+      const style = styles[t.fontName] || {};
+      let fontFamily = "Times New Roman";
+      if(style.fontFamily){
+        fontFamily = String(style.fontFamily).split(",")[0].replace(/["']/g,"");
+      }
+
+      // white box to cover original printed text
+      const eraseBox = new fabric.Rect({
+        left: x,
+        top: y,
+        width: (t.width || t.str.length * t.height) * scale + 2,
+        height: t.height * scale + 3,
+        fill: "#ffffff",
+        selectable: false,
+        evented: false
+      });
+
+      // paragraph-friendly textbox
+      const txt = new fabric.Textbox(t.str,{
+        left: x,
+        top: y,
+        fontSize: t.height * scale,
+        fill:"#000",
+        fontFamily: fontFamily,
+        width: ((t.width || 80) * scale) + 40,
+        backgroundColor:"transparent"
+      });
+
+      txt.originalBg = eraseBox;
+
+      fabricCanvas.add(eraseBox);
+      fabricCanvas.add(txt);
+    });
+
+    fabricCanvas.renderAll();
+    document.getElementById("status").innerText = "Page " + n + " loaded ✅";
+
+  } catch (err) {
+    console.error(err);
+    document.getElementById("status").innerText = "❌ Error loading page";
+  }
+
+  isRendering = false;
+}
+
+/* THUMBNAILS */
+async function generateThumbs(){
+  const thumbs = document.getElementById("thumbs");
+  thumbs.innerHTML = "";
+
+  for(let i=1;i<=pdfDoc.numPages;i++){
+    const page = await pdfDoc.getPage(i);
+    const view = page.getViewport({ scale: 0.25 });
+
+    const c = document.createElement("canvas");
+    c.width = view.width;
+    c.height = view.height;
+
+    await page.render({ canvasContext: c.getContext("2d"), viewport: view }).promise;
+
+    const img = document.createElement("img");
+    img.src = c.toDataURL();
+    img.className = "border rounded cursor-pointer mb-2";
+
+    img.onclick = () => showPage(i);
+    thumbs.appendChild(img);
+  }
+}
+
+/* ZOOM / RESIZE */
+function zoomIn(){
+  baseWidth *= 1.1;
+  if(pdfDoc) showPage(currentPage);
+}
+function zoomOut(){
+  baseWidth /= 1.1;
+  if(pdfDoc) showPage(currentPage);
+}
+
+/* CROP USING CLIP PATH */
+function toggleCropMode(){
+  if(!pdfDoc) return;
+
+  if(cropMode){
+    cropMode = false;
+    fabricCanvas.clipPath = null;
+    cropRect = null;
+    fabricCanvas.renderAll();
+    document.getElementById("status").innerText = "Crop disabled";
+    return;
+  }
+
+  cropMode = true;
+
+  // create central crop rect
+  cropRect = new fabric.Rect({
+    left: fabricCanvas.width * 0.1,
+    top: fabricCanvas.height * 0.1,
+    width: fabricCanvas.width * 0.8,
+    height: fabricCanvas.height * 0.8,
+    fill: "rgba(0,0,0,0.0)",
+    stroke: "#10b981",
+    strokeWidth: 2,
+    hasBorders: true,
+    hasControls: true,
+    selectable: true
+  });
+
+  cropRect.absolutePositioned = true;
+  fabricCanvas.add(cropRect);
+
+  fabricCanvas.clipPath = cropRect;
+  fabricCanvas.renderAll();
+  document.getElementById("status").innerText = "Crop mode: drag green box to set area";
+}
+
+/* AI REWRITE (local backend) */
+function openRewriteBox(){
+  document.getElementById("rewriteBox").classList.remove("hidden");
+}
+function rewriteText(){
+  const txt = document.getElementById("rewriteInput").value;
+  if(!txt.trim()) return alert("Enter text");
+
+  fetch("/ai/rewrite",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ text: txt })
+  }).then(r=>r.json())
+   .then(data=>{
+      const t = new fabric.Textbox(data.result || "",{
+        left:100,
+        top:100,
+        fontSize:18,
+        width:300
+      });
+      fabricCanvas.add(t);
+    });
+}
+
+/* FIND & REPLACE */
+function openFindReplace(){
+  document.getElementById("findReplaceBox").classList.remove("hidden");
+}
+function replaceTextAll(){
+  const f = document.getElementById("findText").value;
+  const r = document.getElementById("replaceText").value;
+
+  if(!f) return;
+
+  fabricCanvas.getObjects().forEach(o=>{
+    if((o.type === "textbox" || o.type === "i-text") && o.text.includes(f)){
+      o.text = o.text.split(f).join(r);
+    }
+  });
+  fabricCanvas.renderAll();
+}
+
+/* DELETE TEXT MODE */
+function enableDeleteMode(){
+  deleteMode = true;
+  alert("Click on a text block to delete it");
+}
+fabricCanvas.on("mouse:down", function(opt){
+  if(deleteMode && opt.target){
+    fabricCanvas.remove(opt.target);
+    deleteMode = false;
+  }
+});
+
+/* STICKY COMMENT */
+function addStickyNote(){
+  const note = new fabric.Rect({
+    left:120,top:120,width:200,height:100,
+    fill:"#fff59d",rx:8,ry:8
+  });
+  const txt = new fabric.Textbox("Comment...",{
+    left:130,top:130,fontSize:14,width:180
+  });
+  fabricCanvas.add(note); fabricCanvas.add(txt);
+}
+
+/* PARAGRAPH EDITOR */
+function openParagraphEditor(){
+  if(!selectedTextObj){
+    alert("Select a text block first");
+    return;
+  }
+  document.getElementById("paraBox").classList.remove("hidden");
+  document.getElementById("paraInput").value = selectedTextObj.text || "";
+}
+function applyParagraphEdit(){
+  if(!selectedTextObj) return;
+  selectedTextObj.text = document.getElementById("paraInput").value;
+  fabricCanvas.renderAll();
+}
+
+/* SIGNATURE */
+let signCanvas = document.getElementById("signCanvas");
+let signCtx = signCanvas.getContext("2d");
+let drawingSign = false;
+
+function startSignature(){
+  document.getElementById("signBox").classList.remove("hidden");
+
+  signCanvas.onmousedown = () => { drawingSign = true; signCtx.beginPath(); };
+  signCanvas.onmouseup = () => { drawingSign = false; };
+  signCanvas.onmousemove = e => {
+    if(!drawingSign) return;
+    signCtx.lineWidth = 2;
+    signCtx.lineTo(e.offsetX,e.offsetY);
+    signCtx.stroke();
+  };
+}
+
+function addSignatureToPDF(){
+  const data = signCanvas.toDataURL();
+  fabric.Image.fromURL(data, img=>{
+    img.set({ left:150, top:150, scaleX:0.5, scaleY:0.5 });
+    fabricCanvas.add(img);
+  });
+  signCtx.clearRect(0,0,signCanvas.width,signCanvas.height);
+  document.getElementById("signBox").classList.add("hidden");
+}
+
+/* OCR */
+async function runOCR(){
+  const img = document.getElementById("pdf-canvas").toDataURL("image/png");
+  const { data } = await Tesseract.recognize(img,"eng");
+  const t = new fabric.Textbox(data.text || "",{left:50,top:50,fontSize:14,width:400});
+  fabricCanvas.add(t);
+}
+
+/* SAVE FULL PDF (visual) – respects crop & zoom */
+async function saveFullPDF(){
+
+  if(!pdfDoc){
+    alert("No PDF loaded");
+    return;
+  }
+
+  const newPdf = await PDFLib.PDFDocument.create();
+
+  for(let i=1;i<=pdfDoc.numPages;i++){
+
+    await showPage(i);
+
+    const dataUrl = fabricCanvas.toDataURL({
+      format: "png",
+      multiplier: 2
+    });
+
+    const imageBytes = await fetch(dataUrl).then(res => res.arrayBuffer());
+    const pngImage = await newPdf.embedPng(imageBytes);
+
+    const page = newPdf.addPage([fabricCanvas.width, fabricCanvas.height]);
+
+    page.drawImage(pngImage,{
+      x:0,
+      y:0,
+      width: page.getWidth(),
+      height: page.getHeight()
+    });
+  }
+
+  const pdfBytes = await newPdf.save();
+  const blob = new Blob([pdfBytes], { type: "application/pdf" });
+
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "BlinkPDF_PERFECT.pdf";
+  a.click();
+}
+
+</script>
+{% endblock %}

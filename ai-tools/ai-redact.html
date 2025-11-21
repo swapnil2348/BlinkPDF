@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+<head>
+<meta charset='utf-8'>
+<title>ai-redact — BlinkPDF</title>
+<link rel='stylesheet' href='styles.css'>
+</head>
+<body>
+<div class='container'>
+<h1>Ai Redact</h1>
+<p class='small'>AI Content Detector + Redaction — detect sensitive info and redact it.</p>
+<div class='tool'>
+<label><strong>Upload PDF</strong></label>
+<input id='file' type='file' accept='application/pdf'>
+<div class='note'>Output preview appears below. This is a placeholder UI — wiring instructions at README-ai.md</div>
+<div style='margin-top:12px'>
+<label>Options: <select id='option'><option value='default'>Default</option></select></label>
+<button id='run'>Run</button>
+</div>
+<div id='preview' class='preview'>No preview (placeholder). Use the Run button to call backend.</div>
+</div>
+<h2 style='margin-top:18px'>PDF Preview</h2>
+<iframe id='pdfPreview' style='width:100%;height:560px;border:1px solid #ccc;border-radius:8px'></iframe>
+</div>
+
+<script>
+document.getElementById('file').addEventListener('change', function(e){
+    var f = e.target.files[0];
+    if(!f) return;
+    var url = URL.createObjectURL(f);
+    document.getElementById('pdfPreview').src = url;
+    document.getElementById('preview').innerText = 'Ready: ' + f.name + ' — click Run to call the backend (mock).';
+});
+
+document.getElementById('run').addEventListener('click', function(){
+    document.getElementById('preview').innerText = 'Working...\nThis page will POST to /api/ai-redact when backend is implemented.';
+    var fd = new FormData();
+    var input = document.getElementById('file');
+        if(input.files.length === 0){ alert('Please choose a PDF first'); return; }
+    fd.append('file', input.files[0]);
+    fetch('/api/ai-redact', { method: 'POST', body: fd })
+    .then(function(r){ return r.json(); })
+    .then(function(j){ document.getElementById('preview').innerText = 'Response: ' + JSON.stringify(j); })
+    .catch(function(e){ document.getElementById('preview').innerText = 'Error calling backend (mock): ' + e; });
+});
+</script>
+</body>
+</html>

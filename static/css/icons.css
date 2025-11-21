@@ -1,0 +1,4 @@
+
+.tool-icon { width:56px; height:56px; border-radius:14px; overflow:hidden; background:#fff; display:flex; align-items:center; justify-content:center; }
+.tool-icon img { width:68%; height:68%; object-fit:contain; }
+.process-btn { width:100%; padding-top:1.25rem; padding-bottom:1.25rem; font-size:1.1rem; border-radius:0.75rem; }

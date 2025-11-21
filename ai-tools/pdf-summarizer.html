@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>PDF Summarizer — BlinkPDF</title><link rel="stylesheet" href="styles.css"></head>
+<body>
+  <div class="container">
+    <h1>PDF Summarizer</h1>
+    <p class="small">Upload a PDF and receive a concise summary and bullet points. Wire backend to /api/ai-summarize (return JSON with summary & highlights).</p>
+    <div class="tool">
+      <input id="file" type="file" accept="application/pdf">
+      <label>Summary length:
+        <select id="len">
+          <option value="short">Short (1-2 lines)</option>
+          <option value="medium">Medium (3-6 lines)</option>
+          <option value="long">Long (1 paragraph)</option>
+        </select>
+      </label>
+      <button id="go">Generate Summary</button>
+      <div id="out" class="preview"></div>
+    </div>
+  </div>
+<script>
+document.getElementById('go').addEventListener('click', ()=>{
+  document.getElementById('out').innerText = "Placeholder: connect to /api/ai-summarize and return {summary, bullets}.";
+});
+</script>
+</body>
+</html>

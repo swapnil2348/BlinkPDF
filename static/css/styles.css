@@ -1,0 +1,7 @@
+/* minimal placeholder css - Tailwind loaded via CDN */
+
+
+/* Accordion transition for advanced settings */
+.adv-box{ transition: max-height 300ms ease; overflow:hidden; }
+.adv-box.hidden{ max-height:0; }
+.process-btn{ width:100%; padding:12px 18px; font-size:1.05rem; border-radius:10px; }

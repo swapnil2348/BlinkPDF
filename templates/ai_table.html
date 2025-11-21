@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}AI Table Extractor - BlinkPDF{% endblock %}
+{% block seo_desc %}Extract tables from your PDF as CSV-like text using a local AI model.{% endblock %}
+
+{% block content %}
+<section class="max-w-3xl mx-auto">
+  <div class="text-center mb-6">
+    <h1 class="text-2xl font-black text-slate-900 dark:text-slate-50">AI Table Extractor</h1>
+    <p class="text-sm text-slate-600 dark:text-slate-300 mt-1">
+      Upload a PDF and let AI detect and extract table-like data as CSV style text.
+    </p>
+  </div>
+
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow">
+    <form id="tblForm">
+      <label class="block text-sm font-semibold mb-2">Upload PDF</label>
+      <input type="file" id="tblFile" name="file" accept="application/pdf"
+             class="w-full border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 bg-transparent">
+      <button type="submit"
+              class="mt-3 w-full sm:w-auto bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">
+        Extract Tables
+      </button>
+    </form>
+
+    <div id="tblResult" class="mt-4 text-xs sm:text-sm text-slate-800 dark:text-slate-100 whitespace-pre overflow-auto hidden"></div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const tblForm   = document.getElementById('tblForm');
+  const tblFile   = document.getElementById('tblFile');
+  const tblResult = document.getElementById('tblResult');
+
+  tblForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!tblFile.files[0]) return;
+
+    const fd = new FormData();
+    fd.append("file", tblFile.files[0]);
+
+    tblResult.classList.remove("hidden");
+    tblResult.textContent = "Extracting tables with local AI…";
+
+    const res = await fetch("/ai/table-extract", {
+      method: "POST",
+      body: fd
+    });
+
+    try {
+      const data = await res.json();
+      tblResult.textContent = data.tables || "No tables detected.";
+    } catch (e) {
+      tblResult.textContent = "Error extracting tables.";
+    }
+  });
+</script>
+{% endblock %}
