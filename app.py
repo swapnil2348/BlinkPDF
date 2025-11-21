@@ -353,7 +353,7 @@ def ai_table_extract():
 def health():
     return jsonify({"status": "OK"})
     
-@app.route("/privacy-policy")
+@app.route("/privacy")
 def privacy():
     return render_template("privacy.html")
 
