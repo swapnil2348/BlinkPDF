@@ -18,47 +18,32 @@
 <section class="max-w-7xl mx-auto px-4 py-8">
 
   <h1 class="text-3xl font-bold mb-4">AI PDF Editor (PRO)</h1>
-  <p class="text-gray-600 max-w-2xl mb-4">
-    Upload, edit, annotate, fill forms, add images, run OCR and export your PDF files directly in your browser.
-  </p>
 
   <!-- Upload -->
   <div class="bg-white p-6 rounded-xl shadow border mb-6">
-    <form onsubmit="event.preventDefault(); loadPDF()" class="flex flex-wrap gap-4 items-center">
-      <input
-        type="file"
-        id="pdfUpload"
-        accept="application/pdf"
-        class="border p-2 rounded w-full sm:w-auto"
-        required
-      >
-      <button
-        type="button"
-        onclick="loadPDF()"
-        class="bg-violet-600 text-white px-4 py-2 rounded"
-      >
+    <form onsubmit="event.preventDefault(); loadPDF()" class="flex flex-col sm:flex-row gap-4">
+      <input type="file" id="pdfUpload" accept="application/pdf" class="border p-2 rounded flex-1" required>
+      <button type="button" onclick="loadPDF()" class="bg-violet-600 text-white px-4 py-2 rounded w-full sm:w-auto">
         Upload & Start
       </button>
     </form>
     <p id="status" class="text-sm mt-2 text-gray-600"></p>
   </div>
 
-  <!-- Main layout -->
   <div class="grid grid-cols-12 gap-4 md:flex-nowrap flex-wrap">
 
     <!-- Thumbnails -->
-    <div
-      class="col-span-12 md:col-span-2 bg-white border rounded-xl p-3 overflow-y-auto max-h-[600px]"
-      id="thumbs"
-    >
+    <div class="col-span-12 md:col-span-2 bg-white border rounded-xl p-3 overflow-y-auto max-h-[600px]" id="thumbs">
       <p class="text-xs text-gray-400 text-center">No file loaded</p>
     </div>
 
     <!-- Main editor -->
-    <div class="col-span-12 md:col-span-10">
+    <div class="col-span-12 md:col-span-10 space-y-3">
 
       <!-- Toolbar -->
-      <div class="bg-white p-3 mb-3 rounded-xl shadow border flex gap-2 flex-wrap">
+      <div class="bg-white p-3 rounded-xl shadow border flex gap-2 flex-wrap items-center">
+
+        <!-- Core tools -->
         <button class="tool-btn" onclick="openRewriteBox()">✨ Rewrite</button>
         <button class="tool-btn" onclick="openFindReplace()">🔁 Find & Replace</button>
         <button class="tool-btn" onclick="enableDeleteMode()">❌ Delete text</button>
@@ -67,14 +52,29 @@
         <button class="tool-btn" onclick="startSignature()">✍ Draw Sign</button>
         <button class="tool-btn" onclick="runOCR()">🔎 OCR</button>
 
-        <!-- Resize / crop -->
+        <!-- Zoom / crop -->
         <button class="tool-btn" onclick="zoomOut()">🔍 -</button>
         <button class="tool-btn" onclick="zoomIn()">🔎 +</button>
         <button class="tool-btn" onclick="toggleCropMode()">✂ Crop</button>
-        <!-- Reset current page -->
-        <button class="tool-btn" onclick="resetPage()">♻ Reset page</button>
 
-        <button class="tool-btn bg-indigo-600 text-white" onclick="saveFullPDF()">💾 Save FULL PDF</button>
+        <!-- NEW: History tools -->
+        <button class="tool-btn" onclick="undo()">↩ Undo</button>
+        <button class="tool-btn" onclick="redo()">↪ Redo</button>
+        <button class="tool-btn" onclick="resetPage()">🧼 Reset Page</button>
+
+        <!-- Save -->
+        <button class="tool-btn bg-indigo-600 text-white ml-auto" onclick="saveFullPDF()">💾 Save FULL PDF</button>
+      </div>
+
+      <!-- Page navigation -->
+      <div class="flex items-center justify-between bg-white p-3 rounded-xl shadow border text-sm">
+        <div class="flex items-center gap-2">
+          <button class="tool-btn" onclick="prevPage()">⬅ Prev</button>
+          <button class="tool-btn" onclick="nextPage()">Next ➡</button>
+        </div>
+        <div class="text-xs sm:text-sm text-gray-600">
+          Page <span id="pageNum">-</span> / <span id="pageCount">-</span>
+        </div>
       </div>
 
       <!-- AI Rewrite -->
@@ -110,21 +110,15 @@
       <!-- Signature pad -->
       <div id="signBox" class="hidden bg-white border p-3 rounded mb-3">
         <canvas id="signCanvas" class="border bg-white w-full h-40"></canvas>
-        <div class="flex gap-2 mt-2">
-          <button onclick="clearSignature()"
-                  class="bg-gray-200 text-gray-800 w-1/2 rounded p-1 text-sm">
-            Clear
-          </button>
-          <button onclick="addSignatureToPDF()"
-                  class="bg-green-600 text-white w-1/2 rounded p-1 text-sm">
-            Add Signature to PDF
-          </button>
-        </div>
+        <button onclick="addSignatureToPDF()"
+          class="bg-green-600 text-white w-full mt-2 rounded p-1">
+          Add Signature to PDF
+        </button>
       </div>
 
-      <!-- Canvas -->
-      <div class="bg-gray-100 p-4 flex justify-center rounded-xl overflow-x-auto">
-        <div class="bg-white shadow-xl p-4 rounded-xl">
+      <!-- Canvas wrapper (horizontal scroll for mobile) -->
+      <div class="bg-gray-100 p-4 rounded-xl overflow-x-auto w-full">
+        <div class="bg-white shadow-xl p-4 rounded-xl min-w-[800px] max-w-full">
           <canvas id="pdf-canvas"></canvas>
         </div>
       </div>
@@ -142,7 +136,7 @@
 
   <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
 
-    <!-- 10 RANDOM TOOLS -->
+    <!-- ✅ 10 RANDOM NORMAL TOOLS (SAFE METHOD) -->
     {% for tool in random_tools %}
       <a href="{{ url_for('tool_page', slug=tool.slug) }}"
          class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm hover:shadow-lg transition group">
@@ -163,7 +157,8 @@
       </a>
     {% endfor %}
 
-    <!-- ALL AI TOOLS -->
+
+    <!-- ✅ ALL AI TOOLS -->
     {% for tool in ai_tools %}
     <a href="{{ tool.url }}"
        class="bg-gradient-to-br from-violet-600 to-indigo-600 rounded-xl p-4 shadow-sm hover:shadow-lg transition text-white">
@@ -209,27 +204,63 @@ let baseWidth = 800;       // used for zoom / resize
 let isRendering = false;
 
 let fabricCanvas = new fabric.Canvas("pdf-canvas");
+fabricCanvas.allowTouchScrolling = true; // helps scrolling on mobile
+
 let ctx = document.getElementById("pdf-canvas").getContext("2d");
 
 let deleteMode = false;
 let cropMode = false;
 let cropRect = null;
 let selectedTextObj = null;
-let isSaving = false;
 
-/* Update status helper */
-function setStatus(msg){
-  const el = document.getElementById("status");
-  if(el) el.textContent = msg || "";
+// history state
+let history = [];
+let historyIndex = -1;
+let isRestoring = false;
+let isSettingUpPage = false;
+
+/* ======== HISTORY HELPERS ======== */
+function saveState() {
+  if (isRestoring || isSettingUpPage || !fabricCanvas) return;
+  const json = fabricCanvas.toJSON();
+  history = history.slice(0, historyIndex + 1);
+  history.push(json);
+  historyIndex = history.length - 1;
 }
 
-/* Reset current page to original state */
-function resetPage(){
-  if(pdfDoc){
-    setStatus("Resetting page...");
-    showPage(currentPage);
+function restoreState(index) {
+  if (index < 0 || index >= history.length) return;
+  isRestoring = true;
+  fabricCanvas.loadFromJSON(history[index], () => {
+    fabricCanvas.renderAll();
+    isRestoring = false;
+  });
+  historyIndex = index;
+}
+
+function undo(){
+  if (historyIndex > 0) {
+    restoreState(historyIndex - 1);
   }
 }
+
+function redo(){
+  if (historyIndex < history.length - 1) {
+    restoreState(historyIndex + 1);
+  }
+}
+
+function resetPage(){
+  if (!pdfDoc) return;
+  showPage(currentPage);
+}
+
+/* Track object changes for history */
+["object:added","object:modified","object:removed"].forEach(ev => {
+  fabricCanvas.on(ev, () => {
+    saveState();
+  });
+});
 
 /* Keep objects inside the page */
 fabricCanvas.on('object:moving', function(e){
@@ -273,27 +304,17 @@ fabricCanvas.on("selection:updated", function(e){
 /* LOAD PDF */
 async function loadPDF(){
   const file = document.getElementById("pdfUpload").files[0];
-  if(!file){
-    alert("Please select a PDF first");
-    return;
-  }
-
-  setStatus("Loading PDF...");
+  if(!file) return alert("Select a PDF");
 
   const reader = new FileReader();
   reader.onload = async function(e){
-    try{
-      const bytes = new Uint8Array(e.target.result);
-      pdfDoc = await pdfjsLib.getDocument({data: bytes}).promise;
-      currentPage = 1;
-      await showPage(currentPage);
-      await generateThumbs();
-      setStatus("PDF Loaded ✅");
-    }catch(err){
-      console.error(err);
-      setStatus("❌ Failed to load PDF");
-      alert("Error loading PDF");
-    }
+    const bytes = new Uint8Array(e.target.result);
+    pdfDoc = await pdfjsLib.getDocument({data: bytes}).promise;
+    document.getElementById("status").innerText = "PDF Loaded ✅";
+    currentPage = 1;
+    document.getElementById("pageCount").innerText = pdfDoc.numPages;
+    await showPage(currentPage);
+    generateThumbs();
   };
   reader.readAsArrayBuffer(file);
 }
@@ -303,8 +324,9 @@ async function showPage(n){
 
   if (!pdfDoc || isRendering) return;
   isRendering = true;
+  isSettingUpPage = true;
   currentPage = n;
-  setStatus("Rendering page " + n + "...");
+  document.getElementById("pageNum").innerText = n;
 
   try {
     const page = await pdfDoc.getPage(n);
@@ -388,11 +410,6 @@ async function showPage(n){
         backgroundColor:"transparent"
       });
 
-      // Keep alignment – prevent weird scaling/rotation
-      txt.lockScalingX = true;
-      txt.lockScalingY = true;
-      txt.lockRotation = true;
-
       txt.originalBg = eraseBox;
 
       fabricCanvas.add(eraseBox);
@@ -400,22 +417,39 @@ async function showPage(n){
     });
 
     fabricCanvas.renderAll();
-    setStatus("Page " + n + " loaded ✅");
+    document.getElementById("status").innerText = "Page " + n + " loaded ✅";
+
+    // reset history for this page & save initial
+    history = [];
+    historyIndex = -1;
+    isSettingUpPage = false;
+    saveState();
 
   } catch (err) {
     console.error(err);
-    setStatus("❌ Error loading page");
+    document.getElementById("status").innerText = "❌ Error loading page";
+    isSettingUpPage = false;
   }
 
   isRendering = false;
+}
+
+/* PAGE NAVIGATION */
+function prevPage(){
+  if (!pdfDoc) return;
+  if (currentPage <= 1) return;
+  showPage(currentPage - 1);
+}
+function nextPage(){
+  if (!pdfDoc) return;
+  if (currentPage >= pdfDoc.numPages) return;
+  showPage(currentPage + 1);
 }
 
 /* THUMBNAILS */
 async function generateThumbs(){
   const thumbs = document.getElementById("thumbs");
   thumbs.innerHTML = "";
-
-  if(!pdfDoc) return;
 
   for(let i=1;i<=pdfDoc.numPages;i++){
     const page = await pdfDoc.getPage(i);
@@ -429,7 +463,7 @@ async function generateThumbs(){
 
     const img = document.createElement("img");
     img.src = c.toDataURL();
-    img.className = "border rounded cursor-pointer mb-2";
+    img.className = "border rounded cursor-pointer mb-2 w-full";
 
     img.onclick = () => showPage(i);
     thumbs.appendChild(img);
@@ -455,7 +489,7 @@ function toggleCropMode(){
     fabricCanvas.clipPath = null;
     cropRect = null;
     fabricCanvas.renderAll();
-    setStatus("Crop disabled");
+    document.getElementById("status").innerText = "Crop disabled";
     return;
   }
 
@@ -480,10 +514,10 @@ function toggleCropMode(){
 
   fabricCanvas.clipPath = cropRect;
   fabricCanvas.renderAll();
-  setStatus("Crop mode: drag green box to set area");
+  document.getElementById("status").innerText = "Crop mode: drag green box to set area";
 }
 
-/* AI REWRITE (backend: /ai/rewrite) */
+/* AI REWRITE (local backend) */
 function openRewriteBox(){
   document.getElementById("rewriteBox").classList.remove("hidden");
 }
@@ -491,27 +525,19 @@ function rewriteText(){
   const txt = document.getElementById("rewriteInput").value;
   if(!txt.trim()) return alert("Enter text");
 
-  setStatus("Asking AI to rewrite text...");
-
   fetch("/ai/rewrite",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
     body: JSON.stringify({ text: txt })
   }).then(r=>r.json())
    .then(data=>{
-      const result = data.result || "";
-      const t = new fabric.Textbox(result,{
+      const t = new fabric.Textbox(data.result || "",{
         left:100,
         top:100,
         fontSize:18,
         width:300
       });
       fabricCanvas.add(t);
-      setStatus("AI rewrite added to page ✅");
-    }).catch(err=>{
-      console.error(err);
-      setStatus("❌ AI rewrite failed");
-      alert("AI rewrite error");
     });
 }
 
@@ -525,15 +551,12 @@ function replaceTextAll(){
 
   if(!f) return;
 
-  let count = 0;
   fabricCanvas.getObjects().forEach(o=>{
-    if((o.type === "textbox" || o.type === "i-text") && o.text && o.text.includes(f)){
+    if((o.type === "textbox" || o.type === "i-text") && o.text.includes(f)){
       o.text = o.text.split(f).join(r);
-      count++;
     }
   });
   fabricCanvas.renderAll();
-  setStatus(`Replaced "${f}" in ${count} block(s).`);
 }
 
 /* DELETE TEXT MODE */
@@ -545,7 +568,6 @@ fabricCanvas.on("mouse:down", function(opt){
   if(deleteMode && opt.target){
     fabricCanvas.remove(opt.target);
     deleteMode = false;
-    setStatus("Text block deleted");
   }
 });
 
@@ -574,7 +596,6 @@ function applyParagraphEdit(){
   if(!selectedTextObj) return;
   selectedTextObj.text = document.getElementById("paraInput").value;
   fabricCanvas.renderAll();
-  setStatus("Paragraph updated");
 }
 
 /* SIGNATURE */
@@ -585,7 +606,6 @@ let drawingSign = false;
 function startSignature(){
   document.getElementById("signBox").classList.remove("hidden");
 
-  // Mouse
   signCanvas.onmousedown = () => { drawingSign = true; signCtx.beginPath(); };
   signCanvas.onmouseup = () => { drawingSign = false; };
   signCanvas.onmouseleave = () => { drawingSign = false; };
@@ -595,36 +615,28 @@ function startSignature(){
     signCtx.lineTo(e.offsetX,e.offsetY);
     signCtx.stroke();
   };
-}
 
-/* Touch support for signature (mobile) */
-signCanvas.addEventListener("touchstart", e => {
-  e.preventDefault();
-  drawingSign = true;
-  signCtx.beginPath();
-});
-signCanvas.addEventListener("touchend", e => {
-  e.preventDefault();
-  drawingSign = false;
-});
-signCanvas.addEventListener("touchcancel", e => {
-  e.preventDefault();
-  drawingSign = false;
-});
-signCanvas.addEventListener("touchmove", e => {
-  e.preventDefault();
-  if(!drawingSign) return;
-  const t = e.touches[0];
-  const rect = signCanvas.getBoundingClientRect();
-  const x = t.clientX - rect.left;
-  const y = t.clientY - rect.top;
-  signCtx.lineWidth = 2;
-  signCtx.lineTo(x, y);
-  signCtx.stroke();
-});
-
-function clearSignature(){
-  signCtx.clearRect(0,0,signCanvas.width,signCanvas.height);
+  // touch support
+  signCanvas.ontouchstart = (e) => {
+    e.preventDefault();
+    drawingSign = true;
+    const rect = signCanvas.getBoundingClientRect();
+    const x = e.touches[0].clientX - rect.left;
+    const y = e.touches[0].clientY - rect.top;
+    signCtx.beginPath();
+    signCtx.moveTo(x,y);
+  };
+  signCanvas.ontouchend = () => { drawingSign = false; };
+  signCanvas.ontouchmove = (e) => {
+    e.preventDefault();
+    if(!drawingSign) return;
+    const rect = signCanvas.getBoundingClientRect();
+    const x = e.touches[0].clientX - rect.left;
+    const y = e.touches[0].clientY - rect.top;
+    signCtx.lineWidth = 2;
+    signCtx.lineTo(x,y);
+    signCtx.stroke();
+  };
 }
 
 function addSignatureToPDF(){
@@ -632,30 +644,17 @@ function addSignatureToPDF(){
   fabric.Image.fromURL(data, img=>{
     img.set({ left:150, top:150, scaleX:0.5, scaleY:0.5 });
     fabricCanvas.add(img);
-    setStatus("Signature added to page");
   });
-  clearSignature();
+  signCtx.clearRect(0,0,signCanvas.width,signCanvas.height);
   document.getElementById("signBox").classList.add("hidden");
 }
 
 /* OCR */
 async function runOCR(){
-  if(!pdfDoc){
-    alert("Load a PDF first");
-    return;
-  }
-  try{
-    setStatus("Running OCR (this can take a moment)...");
-    const img = document.getElementById("pdf-canvas").toDataURL("image/png");
-    const { data } = await Tesseract.recognize(img,"eng");
-    const t = new fabric.Textbox(data.text || "",{left:50,top:50,fontSize:14,width:400});
-    fabricCanvas.add(t);
-    setStatus("OCR complete — text added to page ✅");
-  }catch(err){
-    console.error(err);
-    setStatus("❌ OCR failed");
-    alert("OCR error");
-  }
+  const img = document.getElementById("pdf-canvas").toDataURL("image/png");
+  const { data } = await Tesseract.recognize(img,"eng");
+  const t = new fabric.Textbox(data.text || "",{left:50,top:50,fontSize:14,width:400});
+  fabricCanvas.add(t);
 }
 
 /* SAVE FULL PDF (visual) – respects crop & zoom */
@@ -665,53 +664,71 @@ async function saveFullPDF(){
     alert("No PDF loaded");
     return;
   }
-  if(isSaving) return;
-  isSaving = true;
-  setStatus("Rendering all pages to PDF...");
 
-  try{
-    const newPdf = await PDFLib.PDFDocument.create();
+  const newPdf = await PDFLib.PDFDocument.create();
 
-    for(let i=1;i<=pdfDoc.numPages;i++){
+  for(let i=1;i<=pdfDoc.numPages;i++){
 
-      await showPage(i);
+    await showPage(i);
 
-      const dataUrl = fabricCanvas.toDataURL({
-        format: "png",
-        multiplier: 2
-      });
+    const dataUrl = fabricCanvas.toDataURL({
+      format: "png",
+      multiplier: 2
+    });
 
-      const imageBytes = await fetch(dataUrl).then(res => res.arrayBuffer());
-      const pngImage = await newPdf.embedPng(imageBytes);
+    const imageBytes = await fetch(dataUrl).then(res => res.arrayBuffer());
+    const pngImage = await newPdf.embedPng(imageBytes);
 
-      const page = newPdf.addPage([fabricCanvas.width, fabricCanvas.height]);
+    const page = newPdf.addPage([fabricCanvas.width, fabricCanvas.height]);
 
-      page.drawImage(pngImage,{
-        x:0,
-        y:0,
-        width: page.getWidth(),
-        height: page.getHeight()
-      });
-    }
-
-    const pdfBytes = await newPdf.save();
-    const blob = new Blob([pdfBytes], { type: "application/pdf" });
-
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "BlinkPDF_PERFECT.pdf";
-    a.click();
-
-    setStatus("Full edited PDF downloaded ✅");
-
-  }catch(err){
-    console.error(err);
-    setStatus("❌ Failed to export PDF");
-    alert("Error exporting PDF");
-  }finally{
-    isSaving = false;
+    page.drawImage(pngImage,{
+      x:0,
+      y:0,
+      width: page.getWidth(),
+      height: page.getHeight()
+    });
   }
+
+  const pdfBytes = await newPdf.save();
+  const blob = new Blob([pdfBytes], { type: "application/pdf" });
+
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "BlinkPDF_PERFECT.pdf";
+  a.click();
+}
+
+
+
+// Mobile canvas drag support
+const scrollBox = document.getElementById("pdfScrollWrapper");
+let isDown = false;
+let startX, startY, scrollLeft, scrollTop;
+
+if(scrollBox){
+  scrollBox.addEventListener("touchstart", e => {
+    isDown = true;
+    const touch = e.touches[0];
+    startX = touch.pageX - scrollBox.offsetLeft;
+    startY = touch.pageY - scrollBox.offsetTop;
+    scrollLeft = scrollBox.scrollLeft;
+    scrollTop = scrollBox.scrollTop;
+  });
+
+  scrollBox.addEventListener("touchend", () => isDown = false);
+
+  scrollBox.addEventListener("touchmove", e => {
+    if(!isDown) return;
+    const touch = e.touches[0];
+    const x = touch.pageX - scrollBox.offsetLeft;
+    const y = touch.pageY - scrollBox.offsetTop;
+    const walkX = (x - startX) * 1.5;
+    const walkY = (y - startY) * 1.5;
+    scrollBox.scrollLeft = scrollLeft - walkX;
+    scrollBox.scrollTop = scrollTop - walkY;
+  });
 }
 
 </script>
+
 {% endblock %}
