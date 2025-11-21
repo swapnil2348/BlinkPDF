@@ -2,6 +2,8 @@ import os
 import io
 import zipfile
 import uuid
+import pytesseract
+from pdf2image import convert_from_path
 from shutil import copyfile
 from PIL import Image
 from PyPDF2 import PdfReader, PdfWriter
@@ -104,47 +106,46 @@ class PDFProcessor:
         doc.close()
         return output
 
-    # ---------------- REAL PROTECT (PASSWORD) ----------------
+    # ---------------- PROTECT (REAL) ----------------
     def protect_pdf(self, input_path, out_dir, form):
-        password = form.get("password", "").strip() or "blinkpdf"
+    password = form.get("password", "").strip()
 
-        reader = PdfReader(input_path)
-        writer = PdfWriter()
+    if not password:
+        raise ValueError("Password is required!")
 
-        for page in reader.pages:
-            writer.add_page(page)
+    reader = PdfReader(input_path)
+    writer = PdfWriter()
 
-        writer.encrypt(password)
+    for page in reader.pages:
+        writer.add_page(page)
 
-        output = self._out(out_dir, f"protected_{self._ts()}.pdf")
-        with open(output, "wb") as f:
-            writer.write(f)
-        return output
+    writer.encrypt(password)
 
-    # ---------------- REAL UNLOCK (IF PASSWORD KNOWN) ----------------
+    out = self._out(out_dir, f"protected_{self._ts()}.pdf")
+    with open(out, "wb") as f:
+        writer.write(f)
+
+    return out
+
+    # ---------------- UNLOCK (REAL) ----------------
     def unlock_pdf(self, input_path, out_dir, form):
-        password = form.get("password", "").strip()
+    password = form.get("password", "").strip()
 
-        reader = PdfReader(input_path)
-        if reader.is_encrypted:
-            # try user password (can be empty if owner-locked only)
-            if password:
-                reader.decrypt(password)
-            else:
-                # try blank – many PDFs allow this
-                try:
-                    reader.decrypt("")
-                except Exception:
-                    pass
+    reader = PdfReader(input_path)
 
-        writer = PdfWriter()
-        for page in reader.pages:
-            writer.add_page(page)
+    if reader.is_encrypted:
+        if not reader.decrypt(password):
+            raise ValueError("Incorrect password")
 
-        output = self._out(out_dir, f"unlocked_{self._ts()}.pdf")
-        with open(output, "wb") as f:
-            writer.write(f)
-        return output
+    writer = PdfWriter()
+    for page in reader.pages:
+        writer.add_page(page)
+
+    out = self._out(out_dir, f"unlocked_{self._ts()}.pdf")
+    with open(out, "wb") as f:
+        writer.write(f)
+
+    return out
 
     # ---------------- REAL OPTIMIZE ----------------
     def optimize_pdf(self, input_path, out_dir, form):
@@ -398,14 +399,34 @@ class PDFProcessor:
         imgs[0].save(out, save_all=True, append_images=imgs[1:])
         return out
 
-    # ---------------- EXTRACT TEXT ----------------
+   # ---------------- EXTRACT TEXT (NORMAL + OCR) ----------------
     def extract_text(self, input_path, out_dir):
-        reader = PdfReader(input_path)
-        text = "\n".join(filter(None, [p.extract_text() for p in reader.pages]))
-        out = self._out(out_dir, f"text_{self._ts()}.txt")
-        with open(out, "w", encoding="utf-8") as f:
-            f.write(text)
-        return out
+    reader = PdfReader(input_path)
+    text = ""
+
+    # First try normal text extraction
+    for p in reader.pages:
+        extracted = p.extract_text()
+        if extracted:
+            text += extracted + "\n"
+
+    # If text is too short -> run OCR
+    if len(text.strip()) < 100:
+        images = convert_from_path(input_path, dpi=300)
+
+        for img in images:
+            ocr_text = pytesseract.image_to_string(img)
+            text += ocr_text + "\n"
+
+    if not text.strip():
+        text = "No text found in this document."
+
+    out = self._out(out_dir, f"text_{self._ts()}.txt")
+    with open(out, 'w', encoding='utf-8') as f:
+        f.write(text)
+
+    return out
+
 
     # ---------------- METADATA ----------------
     def metadata_editor(self, input_path, out_dir, form):
@@ -487,7 +508,7 @@ class PDFProcessor:
 
         if slug == "extract-text":
             return self.extract_text(input_path, out_dir)
-
+            
         if slug == "metadata-editor":
             return self.metadata_editor(input_path, out_dir, form)
 
