@@ -106,46 +106,48 @@ class PDFProcessor:
         doc.close()
         return output
 
-    # ---------------- PROTECT PDF (REAL WORKING) ----------------
+        # ---------------- PROTECT PDF (REAL WORKING) ----------------
     def protect_pdf(self, input_path, out_dir, form):
-    password = form.get("password", "").strip()
+        password = form.get("password", "").strip()
 
-    if not password:
-        password = "12345"   # fallback if user forgets
+        if not password:
+            password = "12345"   # fallback if user forgets
 
-    reader = PdfReader(input_path)
-    writer = PdfWriter()
+        reader = PdfReader(input_path)
+        writer = PdfWriter()
 
-    for page in reader.pages:
-        writer.add_page(page)
+        for page in reader.pages:
+            writer.add_page(page)
 
-    writer.encrypt(password)
+        writer.encrypt(password)
 
-    out = self._out(out_dir, f"protected_{self._ts()}.pdf")
-    with open(out, "wb") as f:
-        writer.write(f)
+        out = self._out(out_dir, f"protected_{self._ts()}.pdf")
+        with open(out, "wb") as f:
+            writer.write(f)
 
-    return out
+        return out
 
-    # ---------------- UNLOCK (REAL) ----------------
+
+        # ---------------- UNLOCK (REAL) ----------------
     def unlock_pdf(self, input_path, out_dir, form):
-    password = form.get("password", "").strip()
+        password = form.get("password", "").strip()
 
-    reader = PdfReader(input_path)
+        reader = PdfReader(input_path)
 
-    if reader.is_encrypted:
-        if not reader.decrypt(password):
-            raise ValueError("Incorrect password")
+        if reader.is_encrypted:
+            if not reader.decrypt(password):
+                raise ValueError("Incorrect password")
 
-    writer = PdfWriter()
-    for page in reader.pages:
-        writer.add_page(page)
+        writer = PdfWriter()
+        for page in reader.pages:
+            writer.add_page(page)
 
-    out = self._out(out_dir, f"unlocked_{self._ts()}.pdf")
-    with open(out, "wb") as f:
-        writer.write(f)
+        out = self._out(out_dir, f"unlocked_{self._ts()}.pdf")
+        with open(out, "wb") as f:
+            writer.write(f)
 
-    return out
+        return out
+
 
     # ---------------- REAL OPTIMIZE ----------------
     def optimize_pdf(self, input_path, out_dir, form):
@@ -399,33 +401,34 @@ class PDFProcessor:
         imgs[0].save(out, save_all=True, append_images=imgs[1:])
         return out
 
-   # ---------------- EXTRACT TEXT (NORMAL + OCR) ----------------
+       # ---------------- EXTRACT TEXT (NORMAL + OCR) ----------------
     def extract_text(self, input_path, out_dir):
-    reader = PdfReader(input_path)
-    text = ""
+        reader = PdfReader(input_path)
+        text = ""
 
-    # First try normal text extraction
-    for p in reader.pages:
-        extracted = p.extract_text()
-        if extracted:
-            text += extracted + "\n"
+        # First try normal text extraction
+        for p in reader.pages:
+            extracted = p.extract_text()
+            if extracted:
+                text += extracted + "\n"
 
-    # If text is too short -> run OCR
-    if len(text.strip()) < 100:
-        images = convert_from_path(input_path, dpi=300)
+        # If text is too short -> run OCR
+        if len(text.strip()) < 100:
+            images = convert_from_path(input_path, dpi=300)
 
-        for img in images:
-            ocr_text = pytesseract.image_to_string(img)
-            text += ocr_text + "\n"
+            for img in images:
+                ocr_text = pytesseract.image_to_string(img)
+                text += ocr_text + "\n"
 
-    if not text.strip():
-        text = "No text found in this document."
+        if not text.strip():
+            text = "No text found in this document."
 
-    out = self._out(out_dir, f"text_{self._ts()}.txt")
-    with open(out, 'w', encoding='utf-8') as f:
-        f.write(text)
+        out = self._out(out_dir, f"text_{self._ts()}.txt")
+        with open(out, 'w', encoding='utf-8') as f:
+            f.write(text)
 
-    return out
+        return out
+
 
 
     # ---------------- METADATA ----------------
