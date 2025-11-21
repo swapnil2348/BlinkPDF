@@ -130,7 +130,12 @@ if(toggleBtnMobile){
     applyTheme(next);
   };
 }
+function toggleMenu() {
+  let menu = document.getElementById("mobileMenu");
+  menu.classList.toggle("hidden");
+}
 </script>
+
 
 {% block scripts %}{% endblock %}
 </body>
