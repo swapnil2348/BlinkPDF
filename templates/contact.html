@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Contact Us — BlinkPDF{% endblock %}
+{% block content %}
+
+<div class="max-w-3xl mx-auto">
+  <h1 class="text-3xl font-bold mb-6">Contact BlinkPDF</h1>
+
+  <p class="mb-4">
+    Have questions, suggestions, or business inquiries?
+    Reach out using the form below or email us.
+  </p>
+
+  <form method="POST" 
+        class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow space-y-4">
+
+    <div>
+      <label class="block text-sm mb-1">Name</label>
+      <input type="text" required
+             class="w-full border rounded p-2 dark:bg-gray-700">
+    </div>
+
+    <div>
+      <label class="block text-sm mb-1">Email</label>
+      <input type="email" required
+             class="w-full border rounded p-2 dark:bg-gray-700">
+    </div>
+
+    <div>
+      <label class="block text-sm mb-1">Message</label>
+      <textarea rows="5" required
+                class="w-full border rounded p-2 dark:bg-gray-700"></textarea>
+    </div>
+
+    <button type="submit"
+            class="bg-violet-600 hover:bg-violet-700 text-white px-6 py-2 rounded-md">
+      Send Message
+    </button>
+
+  </form>
+
+  <p class="mt-4 text-sm text-gray-500">
+    Or email: <strong>support@blinkpdf.in</strong>
+  </p>
+</div>
+
+{% endblock %}
+
