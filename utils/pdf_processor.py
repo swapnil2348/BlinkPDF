@@ -3,7 +3,7 @@ import io
 import zipfile
 import uuid
 import pytesseract
-from pdf2image import convert_from_path
+# from pdf2image import convert_from_path
 from shutil import copyfile
 from PIL import Image
 from PyPDF2 import PdfReader, PdfWriter
