@@ -117,7 +117,7 @@
       </div>
 
       <!-- Canvas wrapper (horizontal scroll for mobile) -->
-      <div class="bg-gray-100 p-4 rounded-xl overflow-x-auto w-full">
+      <div class="bg-gray-100 p-4 rounded-xl overflow-auto w-full touch-pan-x touch-pan-y">
         <div class="bg-white shadow-xl p-4 rounded-xl min-w-[800px] max-w-full">
           <canvas id="pdf-canvas"></canvas>
         </div>
@@ -728,6 +728,81 @@ if(scrollBox){
     scrollBox.scrollTop = scrollTop - walkY;
   });
 }
+
+/* ================= MOBILE TOUCH + ZOOM SUPPORT ================= */
+
+let lastX = 0;
+let lastY = 0;
+let isPanning = false;
+let pinchStartDist = 0;
+let lastZoom = 1;
+
+/* distance between two fingers */
+function getDistance(touches){
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+const pdfCanvas = document.getElementById("pdf-canvas");
+
+/* TOUCH START */
+pdfCanvas.addEventListener("touchstart", function(e){
+  if (e.touches.length === 1) {
+    // PAN start
+    isPanning = true;
+    lastX = e.touches[0].clientX;
+    lastY = e.touches[0].clientY;
+  }
+
+  if (e.touches.length === 2) {
+    // PINCH zoom start
+    pinchStartDist = getDistance(e.touches);
+    lastZoom = fabricCanvas.getZoom();
+  }
+
+}, { passive: false });
+
+/* TOUCH MOVE */
+pdfCanvas.addEventListener("touchmove", function(e){
+  e.preventDefault(); // stops page scroll only when touching canvas
+
+  // 1 finger = PAN
+  if (e.touches.length === 1 && isPanning) {
+    const touch = e.touches[0];
+    const dx = touch.clientX - lastX;
+    const dy = touch.clientY - lastY;
+
+    fabricCanvas.relativePan(new fabric.Point(dx, dy));
+
+    lastX = touch.clientX;
+    lastY = touch.clientY;
+  }
+
+  // 2 finger = PINCH ZOOM
+  if (e.touches.length === 2) {
+    const dist = getDistance(e.touches);
+    const zoom = lastZoom * (dist / pinchStartDist);
+
+    fabricCanvas.zoomToPoint(
+      new fabric.Point(
+        (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        (e.touches[0].clientY + e.touches[1].clientY) / 2
+      ),
+      zoom
+    );
+  }
+
+}, { passive: false });
+
+/* TOUCH END */
+pdfCanvas.addEventListener("touchend", function(){
+  isPanning = false;
+  pinchStartDist = 0;
+});
+
+/* ================= END MOBILE PATCH ================= */
+
 
 </script>
 
