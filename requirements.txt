@@ -10,4 +10,4 @@ gunicorn
 requests
 reportlab
 werkzeug
-pdf2image
+

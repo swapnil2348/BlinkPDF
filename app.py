@@ -363,7 +363,7 @@ def ai_table_extract():
 # --------------------------------------------------------------------
 @app.route("/health")
 def health():
-    return jsonify({"status": "OK"})
+    return "BlinkPDF is running"
     
 @app.route("/privacy")
 def privacy():
