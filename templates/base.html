@@ -93,13 +93,17 @@ const btn = document.getElementById("mobileBtn");
 const menu = document.getElementById("mobileMenu");
 
 if (btn && menu) {
-  btn.onclick = function () {
-    if (menu.classList.contains("hidden")) {
-      menu.classList.remove("hidden");
+  btn.addEventListener("click", () => {
+
+    if (menu.classList.contains("-translate-y-full")) {
+      menu.classList.remove("-translate-y-full", "opacity-0");
+      menu.classList.add("translate-y-0", "opacity-100");
     } else {
-      menu.classList.add("hidden");
+      menu.classList.add("-translate-y-full", "opacity-0");
+      menu.classList.remove("translate-y-0", "opacity-100");
     }
-  };
+
+  });
 }
 
 /* ===== DARK MODE ===== */
