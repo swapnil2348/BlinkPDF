@@ -97,6 +97,93 @@
     <input type="number" name="height" placeholder="Height" class="border p-2 rounded">
   </div>
   {% endif %}
+  
+  <!-- ======================== NEW ADVANCED OPTIONS ======================== -->
+
+<!-- COMPRESS PDF -->
+{% if tool.slug == "compress-pdf" %}
+<div class="p-4 bg-gray-50 rounded-xl border">
+  <h3 class="font-semibold text-sm mb-3">Compression Level</h3>
+  <select name="level" class="border p-2 rounded w-full">
+    <option value="low">Low (Best Quality)</option>
+    <option value="medium">Medium (Balanced)</option>
+    <option value="high">High (Smallest Size)</option>
+  </select>
+</div>
+{% endif %}
+
+<!-- OPTIMIZE PDF -->
+{% if tool.slug == "optimize-pdf" %}
+<div class="p-4 bg-gray-50 rounded-xl border">
+  <h3 class="font-semibold text-sm mb-3">Optimization Options</h3>
+  <label><input type="checkbox" name="clean_metadata"> Remove Metadata</label><br>
+  <label><input type="checkbox" name="compress_images"> Compress Images</label><br>
+  <label><input type="checkbox" name="remove_blank_pages"> Remove Blank Pages</label>
+</div>
+{% endif %}
+
+<!-- ROTATE PDF -->
+{% if tool.slug == "rotate-pdf" %}
+<div class="p-4 bg-gray-50 rounded-xl border">
+  <h3 class="font-semibold text-sm mb-3">Rotate Pages</h3>
+  <select name="angle" class="border p-2 rounded w-full">
+    <option value="90">90° Right</option>
+    <option value="180">180°</option>
+    <option value="270">270° Left</option>
+  </select>
+</div>
+{% endif %}
+
+<!-- PROTECT PDF -->
+{% if tool.slug == "protect-pdf" %}
+<div class="p-4 bg-gray-50 rounded-xl border">
+  <h3 class="font-semibold text-sm mb-2">Set Password</h3>
+  <input type="password" name="password" placeholder="Enter password"
+         class="border p-2 rounded w-full">
+</div>
+{% endif %}
+
+<!-- UNLOCK PDF -->
+{% if tool.slug == "unlock-pdf" %}
+<div class="p-4 bg-gray-50 rounded-xl border">
+  <h3 class="font-semibold text-sm mb-2">Enter Current Password</h3>
+  <input type="password" name="password" placeholder="Current PDF Password"
+         class="border p-2 rounded w-full">
+</div>
+{% endif %}
+
+<!-- OCR PDF -->
+{% if tool.slug == "ocr-pdf" %}
+<div class="p-4 bg-gray-50 rounded-xl border">
+  <h3 class="font-semibold text-sm mb-2">OCR Options</h3>
+  <select name="language" class="border p-2 rounded w-full">
+    <option value="eng">English</option>
+    <option value="spa">Spanish</option>
+    <option value="fra">French</option>
+    <option value="hin">Hindi</option>
+  </select>
+</div>
+{% endif %}
+
+<!-- EXTRACT TEXT -->
+{% if tool.slug == "extract-text" %}
+<div class="p-4 bg-gray-50 rounded-xl border">
+  <h3 class="font-semibold text-sm mb-2">Extraction Mode</h3>
+  <label><input type="radio" name="mode" value="text" checked> Text Only</label><br>
+  <label><input type="radio" name="mode" value="ocr"> OCR + Text</label>
+</div>
+{% endif %}
+
+<!-- EXTRACT IMAGES -->
+{% if tool.slug == "extract-images" %}
+<div class="p-4 bg-gray-50 rounded-xl border">
+  <h3 class="font-semibold text-sm mb-2">Image Format</h3>
+  <select name="format" class="border p-2 rounded w-full">
+    <option value="png">PNG</option>
+    <option value="jpg">JPG</option>
+  </select>
+</div>
+{% endif %}
 
   <!-- PROCESS BUTTON -->
   <div class="flex justify-end">
