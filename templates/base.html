@@ -35,49 +35,43 @@
 <body class="bg-[#fbfbfd] dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors">
 
 <!-- ================= NAVBAR ================= -->
-<nav class="bg-white dark:bg-gray-900 shadow-md sticky top-0 z-50">
+<nav class="bg-white dark:bg-gray-900 shadow sticky top-0 z-50">
   <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
 
-    <!-- LOGO (NO GAP, NO GLOW) -->
-    <a href="{{ url_for('index') }}"
-   class="text-xl font-extrabold !text-violet-600 dark:!text-violet-400 tracking-normal">
+    <!-- LOGO -->
+    <a href="{{ url_for('index') }}" 
+       class="text-xl font-bold tracking-wide text-violet-600 dark:text-violet-400">
       BlinkPDF
     </a>
 
     <!-- DESKTOP MENU -->
     <div class="hidden md:flex space-x-6 text-sm font-semibold">
-      <a href="{{ url_for('index') }}" class="text-violet-600 hover:text-violet-800 dark:text-white">
-        Home
-      </a>
-      <a href="{{ url_for('ai_tools_page') }}" class="text-violet-600 hover:text-violet-800 dark:text-white">
-        AI Tools
-      </a>
-      <a href="{{ url_for('tool_page', slug='compress-pdf') }}" class="text-violet-600 hover:text-violet-800 dark:text-white">
-        Compress PDF
-      </a>
-      <a href="{{ url_for('tool_page', slug='merge-pdf') }}" class="text-violet-600 hover:text-violet-800 dark:text-white">
-        Merge PDF
-      </a>
+      <a href="{{ url_for('index') }}" class="hover:text-violet-600">Home</a>
+      <a href="{{ url_for('ai_tools_page') }}" class="hover:text-violet-600">AI Tools</a>
+      <a href="{{ url_for('tool_page', slug='compress-pdf') }}" class="hover:text-violet-600">Compress PDF</a>
+      <a href="{{ url_for('tool_page', slug='merge-pdf') }}" class="hover:text-violet-600">Merge PDF</a>
     </div>
 
     <!-- MOBILE HAMBURGER -->
-    <button id="mobileBtn"class="md:hidden text-violet-600 dark:text-white z-50 relative">
+    <button id="mobileBtn" class="md:hidden text-violet-600 dark:text-violet-400">
       <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M4 6h16M4 12h16M4 18h16"></path>
+          d="M4 6h16M4 12h16M4 18h16"></path>
       </svg>
     </button>
 
   </div>
 
   <!-- MOBILE DROPDOWN -->
-  <div id="mobileMenu"class="hidden md:hidden bg-white dark:bg-gray-900 px-4 pb-4 absolute top-full left-0 right-0 shadow-lg z-40">
-    <a href="{{ url_for('index') }}" class="block py-2 text-violet-600 dark:text-white">Home</a>
-    <a href="{{ url_for('ai_tools_page') }}" class="block py-2 text-violet-600 dark:text-white">AI Tools</a>
-    <a href="{{ url_for('tool_page', slug='compress-pdf') }}" class="block py-2 text-violet-600 dark:text-white">Compress PDF</a>
-    <a href="{{ url_for('tool_page', slug='merge-pdf') }}" class="block py-2 text-violet-600 dark:text-white">Merge PDF</a>
+  <div id="mobileMenu" class="hidden md:hidden bg-white dark:bg-gray-900 px-4 pb-4">
+    <a href="{{ url_for('index') }}" class="block py-2">Home</a>
+    <a href="{{ url_for('ai_tools_page') }}" class="block py-2">AI Tools</a>
+    <a href="{{ url_for('tool_page', slug='compress-pdf') }}" class="block py-2">Compress PDF</a>
+    <a href="{{ url_for('tool_page', slug='merge-pdf') }}" class="block py-2">Merge PDF</a>
   </div>
+
 </nav>
+
 
 <!-- MAIN -->
 <main class="max-w-7xl mx-auto px-4 py-8">
