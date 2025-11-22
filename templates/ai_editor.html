@@ -3,25 +3,21 @@
 {% block seo_desc %}Edit, sign, OCR and modify PDFs online for free{% endblock %}
 
 {% block content %}
-
 <style>
-  .tool-btn {
-    padding: 6px 14px;
-    border-radius: 6px;
-    background: #f3f4f6;
-    font-size: 14px;
-    border: 1px solid #e5e7eb;
+  .tool-btn{
+    padding:6px 14px;
+    border-radius:6px;
+    background:#f3f4f6;
+    font-size:14px;
+    border:1px solid #e5e7eb;
   }
+  .tool-btn:hover{ background:#e5e7eb; }
+  .tool-btn.active { background:#7c3aed; color:white; }
 
-  .tool-btn:hover { background: #e5e7eb; }
-
-  .tool-btn.active {
-    background: #7c3aed;
-    color: white;
-  }
-
+  /* MOBILE TOUCH FIX FOR PDF CANVAS */
   #pdf-canvas {
-    touch-action: none;
+    touch-action: none;          /* allow custom gestures */
+    -ms-touch-action: none;
     user-select: none;
     -webkit-user-select: none;
     -webkit-tap-highlight-color: transparent;
@@ -34,28 +30,16 @@
 
   <!-- Upload -->
   <div class="bg-white p-6 rounded-xl shadow border mb-6">
-    <form id="uploadForm" class="flex flex-col sm:flex-row gap-4">
-      <input
-        type="file"
-        id="pdfUpload"
-        accept="application/pdf"
-        required
-        class="border p-2 rounded flex-1"
-      >
-
-      <button
-        type="button"
-        id="uploadBtn"
-        class="bg-violet-600 text-white px-6 py-2 rounded hover:bg-violet-700 w-full sm:w-auto"
-      >
+    <form onsubmit="event.preventDefault(); loadPDF()" class="flex flex-col sm:flex-row gap-4">
+      <input type="file" id="pdfUpload" accept="application/pdf" class="border p-2 rounded flex-1" required>
+      <button type="button" onclick="loadPDF()" class="bg-violet-600 text-white px-4 py-2 rounded w-full sm:w-auto">
         Upload & Start
       </button>
     </form>
-
-    <p id="status" class="text-sm mt-3 text-violet-600 font-semibold"></p>
+    <p id="status" class="text-sm mt-2 text-gray-600"></p>
   </div>
 
-  <div class="grid grid-cols-12 gap-4">
+  <div class="grid grid-cols-12 gap-4 md:flex-nowrap flex-wrap">
 
     <!-- Thumbnails -->
     <div class="col-span-12 md:col-span-2 bg-white border rounded-xl p-3 overflow-y-auto max-h-[600px]" id="thumbs">
@@ -65,45 +49,86 @@
     <!-- Main editor -->
     <div class="col-span-12 md:col-span-10 space-y-3">
 
+      <!-- Toolbar -->
       <div class="bg-white p-3 rounded-xl shadow border flex gap-2 flex-wrap items-center">
-
-        <button class="tool-btn" onclick="rewriteSelectedText()">🤖 AI Rewrite</button>
+        <!-- Core tools -->
+        <button class="tool-btn" onclick="openRewriteBox()">✨ Rewrite</button>
         <button class="tool-btn" onclick="openFindReplace()">🔁 Find & Replace</button>
         <button class="tool-btn" onclick="enableDeleteMode()">❌ Delete text</button>
         <button class="tool-btn" onclick="addStickyNote()">💬 Comment</button>
-        <button class="tool-btn" onclick="openParagraphEditor()">¶ Paragraph</button>
-        <button class="tool-btn" onclick="startSignature()">✍ Sign</button>
+        <button class="tool-btn" onclick="openParagraphEditor()">¶ Paragraph editor</button>
+        <button class="tool-btn" onclick="startSignature()">✍ Draw Sign</button>
         <button class="tool-btn" onclick="runOCR()">🔎 OCR</button>
 
+        <!-- Zoom / crop -->
         <button class="tool-btn" onclick="zoomOut()">🔍 -</button>
         <button class="tool-btn" onclick="zoomIn()">🔎 +</button>
         <button class="tool-btn" onclick="toggleCropMode()">✂ Crop</button>
 
+        <!-- NEW: History tools -->
         <button class="tool-btn" onclick="undo()">↩ Undo</button>
         <button class="tool-btn" onclick="redo()">↪ Redo</button>
+        <button class="tool-btn" onclick="resetPage()">🧼 Reset Page</button>
 
-        <button
-          class="tool-btn ml-auto"
-          style="background:#7c3aed;color:white;"
-          onclick="saveFullPDF()"
-        >
-          💾 Save FULL PDF
-        </button>
+        <!-- Save -->
+        <button class="tool-btn bg-indigo-600 text-white ml-auto" onclick="saveFullPDF()">💾 Save FULL PDF</button>
       </div>
 
+      <!-- Page navigation -->
       <div class="flex items-center justify-between bg-white p-3 rounded-xl shadow border text-sm">
-        <div>
+        <div class="flex items-center gap-2">
           <button class="tool-btn" onclick="prevPage()">⬅ Prev</button>
           <button class="tool-btn" onclick="nextPage()">Next ➡</button>
         </div>
-        <div>
+        <div class="text-xs sm:text-sm text-gray-600">
           Page <span id="pageNum">-</span> / <span id="pageCount">-</span>
         </div>
       </div>
 
-      <div class="bg-gray-100 p-2 md:p-4 rounded-xl overflow-scroll touch-pan" style="max-height:75vh;">
+      <!-- AI Rewrite -->
+      <div id="rewriteBox" class="hidden bg-white p-3 border rounded mb-3">
+        <textarea id="rewriteInput" class="border w-full rounded p-2" rows="3"
+          placeholder="Enter text to rewrite..."></textarea>
+        <button onclick="rewriteText()"
+          class="bg-violet-600 text-white p-2 mt-2 rounded w-full">
+          Rewrite & Add
+        </button>
+      </div>
+
+      <!-- Find & Replace -->
+      <div id="findReplaceBox" class="hidden bg-white p-3 border rounded mb-3">
+        <input id="findText" class="border p-2 w-full mb-2" placeholder="Find text">
+        <input id="replaceText" class="border p-2 w-full mb-2" placeholder="Replace with">
+        <button onclick="replaceTextAll()"
+          class="bg-indigo-600 text-white px-3 py-1 rounded w-full">
+          Replace All
+        </button>
+      </div>
+
+      <!-- Paragraph editor -->
+      <div id="paraBox" class="hidden bg-white p-3 border rounded mb-3">
+        <p class="text-sm mb-1 text-gray-700">Edit paragraph of selected text:</p>
+        <textarea id="paraInput" class="border w-full rounded p-2" rows="4"></textarea>
+        <button onclick="applyParagraphEdit()"
+          class="bg-indigo-600 text-white px-3 py-1 rounded w-full mt-2">
+          Apply to selected text block
+        </button>
+      </div>
+
+      <!-- Signature pad -->
+      <div id="signBox" class="hidden bg-white border p-3 rounded mb-3">
+        <canvas id="signCanvas" class="border bg-white w-full h-40"></canvas>
+        <button onclick="addSignatureToPDF()"
+          class="bg-green-600 text-white w-full mt-2 rounded p-1">
+          Add Signature to PDF
+        </button>
+      </div>
+
+      <!-- Canvas wrapper (horizontal scroll for mobile) -->
+      <div class="bg-gray-100 p-2 md:p-4 rounded-xl overflow-scroll touch-pan touch-pinch"
+           style="max-height:75vh; -webkit-overflow-scrolling: touch;">
         <div style="min-width:100%; display:flex; justify-content:center;">
-          <div class="bg-white shadow-xl p-4 rounded-xl min-w-[800px]">
+          <div class="bg-white shadow-xl p-4 rounded-xl min-w-[800px] max-w-full">
             <canvas id="pdf-canvas"></canvas>
           </div>
         </div>
@@ -111,333 +136,706 @@
 
     </div>
   </div>
-
 </section>
+
+<!-- ================== RANDOM TOOL SUGGESTION GRID ================== -->
+<section class="max-w-7xl mx-auto mt-16">
+  <h2 class="text-xl font-black mb-5 text-slate-900 dark:text-slate-100">
+    Explore More Tools
+  </h2>
+
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+
+    <!-- ✅ 10 RANDOM NORMAL TOOLS (SAFE METHOD) -->
+    {% for tool in random_tools %}
+      <a href="{{ url_for('tool_page', slug=tool.slug) }}"
+         class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm hover:shadow-lg transition group">
+
+        <div class="flex flex-col items-start gap-2">
+          <img src="{{ url_for('static', filename='icons/' ~ tool.icon) }}"
+               class="h-10 w-10"
+               alt="{{ tool.title }}">
+
+          <h4 class="font-semibold text-sm text-slate-900 dark:text-white group-hover:text-violet-600">
+            {{ tool.title }}
+          </h4>
+
+          <p class="text-xs text-slate-500 leading-tight">
+            {{ tool.desc }}
+          </p>
+        </div>
+      </a>
+    {% endfor %}
+
+    <!-- ✅ ALL AI TOOLS -->
+    {% for tool in ai_tools %}
+    <a href="{{ tool.url }}"
+       class="bg-gradient-to-br from-violet-600 to-indigo-600 rounded-xl p-4 shadow-sm hover:shadow-lg transition text-white">
+
+      <div class="flex flex-col items-start gap-2">
+        <img src="{{ url_for('static', filename='icons/' ~ tool.icon) }}"
+             class="h-10 w-10 invert"
+             alt="{{ tool.title }}">
+
+        <h4 class="font-semibold text-sm">
+          {{ tool.title }}
+        </h4>
+
+        <p class="text-xs opacity-90">
+          {{ tool.desc }}
+        </p>
+      </div>
+    </a>
+    {% endfor %}
+
+  </div>
+</section>
+<!-- ========================================================= -->
 
 {% endblock %}
 
 {% block scripts %}
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-<script>pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";</script>
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+</script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 
 <script>
-// ================= PRO TEXT ENGINE LEVEL 2 =================
-let pageStates = {};              // Stores JSON for each page
-let autoSaveInterval = null;      // Autosave timer
-let currentFont = "Times New Roman";
-let currentFontSize = 16;
-let realEdits = [];
-let currentScale = 1;
-
+/* =========================================================
+   CORE STATE
+========================================================= */
 let pdfDoc = null;
 let currentPage = 1;
-let baseWidth = 800;
+let baseWidth = 800;       // used for zoom / resize
+let isRendering = false;
 
 let fabricCanvas = new fabric.Canvas("pdf-canvas");
+fabricCanvas.allowTouchScrolling = true; // helps scrolling on mobile
+
 let ctx = document.getElementById("pdf-canvas").getContext("2d");
-let originalPdfBytes = null;
 
-async function loadPDF() {
-  const fileInput = document.getElementById("pdfUpload");
-  if (!fileInput.files[0]) {
-    alert("Please select a PDF first");
-    return;
-  }
+let deleteMode = false;
+let cropMode = false;
+let cropRect = null;
+let selectedTextObj = null;
 
-  const arrayBuffer = await fileInput.files[0].arrayBuffer();
-  originalPdfBytes = arrayBuffer;
+// history state
+let history = [];
+let historyIndex = -1;
+let isRestoring = false;
+let isSettingUpPage = false;
 
-  const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-  pdfDoc = await loadingTask.promise;
-
-  document.getElementById("pageCount").innerText = pdfDoc.numPages;
-  showPage(1);
-  generateThumbs();
+/* =========================================================
+   HISTORY HELPERS
+========================================================= */
+function saveState() {
+  if (isRestoring || isSettingUpPage || !fabricCanvas) return;
+  const json = fabricCanvas.toJSON();
+  history = history.slice(0, historyIndex + 1);
+  history.push(json);
+  historyIndex = history.length - 1;
 }
 
-document.getElementById("uploadBtn").addEventListener("click", async function(){
+function restoreState(index) {
+  if (index < 0 || index >= history.length) return;
+  isRestoring = true;
+  fabricCanvas.loadFromJSON(history[index], () => {
+    fabricCanvas.renderAll();
+    isRestoring = false;
+  });
+  historyIndex = index;
+}
 
+function undo(){
+  if (historyIndex > 0) {
+    restoreState(historyIndex - 1);
+  }
+}
+
+function redo(){
+  if (historyIndex < history.length - 1) {
+    restoreState(historyIndex + 1);
+  }
+}
+
+function resetPage(){
+  if (!pdfDoc) return;
+  showPage(currentPage);
+}
+
+/* Track object changes for history */
+["object:added","object:modified","object:removed"].forEach(ev => {
+  fabricCanvas.on(ev, () => {
+    saveState();
+  });
+});
+
+/* Keep objects inside the page */
+fabricCanvas.on('object:moving', function(e){
+  const obj = e.target;
+  obj.setCoords();
+
+  if (obj.left < 0) obj.left = 0;
+  if (obj.top < 0) obj.top = 0;
+
+  if (obj.left + obj.width * obj.scaleX > fabricCanvas.width){
+    obj.left = fabricCanvas.width - obj.width * obj.scaleX;
+  }
+  if (obj.top + obj.height * obj.scaleY > fabricCanvas.height){
+    obj.top = fabricCanvas.height - obj.height * obj.scaleY;
+  }
+});
+
+/* text:changed → remove original background box */
+fabricCanvas.on("text:changed", function(e) {
+  const obj = e.target;
+  if (obj.originalBg) {
+    fabricCanvas.remove(obj.originalBg);
+    obj.originalBg = null;
+  }
+});
+
+/* Track selected text for paragraph editor */
+fabricCanvas.on("selection:created", function(e){
+  const obj = e.selected[0];
+  if(obj && (obj.type === "i-text" || obj.type === "textbox")){
+    selectedTextObj = obj;
+  }
+});
+fabricCanvas.on("selection:updated", function(e){
+  const obj = e.selected[0];
+  if(obj && (obj.type === "i-text" || obj.type === "textbox")){
+    selectedTextObj = obj;
+  }
+});
+
+/* =========================================================
+   LOAD PDF
+========================================================= */
+async function loadPDF(){
   const file = document.getElementById("pdfUpload").files[0];
-  if(!file){ alert("Select a PDF"); return; }
+  if(!file) return alert("Select a PDF");
 
-  const status = document.getElementById("status");
-  status.innerText="⏳ Loading PDF...";
+  document.getElementById("status").innerText = "⏳ Loading PDF...";
 
   const reader = new FileReader();
   reader.onload = async function(e){
-    const bytes = new Uint8Array(e.target.result);
-    pdfDoc = await pdfjsLib.getDocument({data:bytes}).promise;
-
-    currentPage=1;
-    document.getElementById("pageCount").innerText = pdfDoc.numPages;
-
-    await showPage(currentPage);
-    generateThumbs();
-
-    status.innerText="✅ PDF loaded";
-  }
-
+    try {
+      const bytes = new Uint8Array(e.target.result);
+      pdfDoc = await pdfjsLib.getDocument({data: bytes}).promise;
+      currentPage = 1;
+      document.getElementById("pageCount").innerText = pdfDoc.numPages;
+      await showPage(currentPage);
+      generateThumbs();
+      document.getElementById("status").innerText = "✅ PDF loaded";
+    } catch(err){
+      console.error(err);
+      document.getElementById("status").innerText = "❌ Failed to load PDF";
+    }
+  };
   reader.readAsArrayBuffer(file);
+}
 
-  const formData=new FormData();
-  formData.append("file",file);
-  const res=await fetch("/ai/upload-pdf",{method:"POST",body:formData});
-  const data=await res.json();
-  if(data.success){ window.serverPDF=data.filename; }
-});
-
-
+/* =========================================================
+   SHOW PAGE – smart text overlay
+========================================================= */
 async function showPage(n){
 
-  // remember current page
+  if (!pdfDoc || isRendering) return;
+  isRendering = true;
+  isSettingUpPage = true;
   currentPage = n;
   document.getElementById("pageNum").innerText = n;
 
-  const page = await pdfDoc.getPage(n);
-  const unscaled = page.getViewport({scale:1});
-  const scale = baseWidth / unscaled.width;
-  currentScale = scale;
+  try {
+    const page = await pdfDoc.getPage(n);
 
-  const viewport = page.getViewport({scale});
+    const unscaled = page.getViewport({ scale: 1 });
+    const scale = baseWidth / unscaled.width;
+    const viewport = page.getViewport({ scale });
 
-  const canvas = document.getElementById("pdf-canvas");
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
+    const canvasEl = document.getElementById("pdf-canvas");
+    canvasEl.width = viewport.width;
+    canvasEl.height = viewport.height;
 
-  // reset fabric canvas for this page
-  fabricCanvas.clear();
-  fabricCanvas.setWidth(viewport.width);
-  fabricCanvas.setHeight(viewport.height);
+    fabricCanvas.setWidth(viewport.width);
+    fabricCanvas.setHeight(viewport.height);
 
-  // draw PDF page into the plain canvas
-  await page.render({ canvasContext: ctx, viewport }).promise;
+    // Reset crop when switching pages
+    fabricCanvas.clipPath = null;
+    cropRect = null;
 
-  // use rendered page as non-selectable background
-  const bg = canvas.toDataURL();
-  fabric.Image.fromURL(bg, img => {
-    img.selectable = false;
-    img.evented = false;
-    img.scaleToWidth(fabricCanvas.width);
-    img.scaleToHeight(fabricCanvas.height);
-    fabricCanvas.setBackgroundImage(
-      img,
-      fabricCanvas.renderAll.bind(fabricCanvas)
-    );
-  });
+    // Draw PDF into canvas
+    await page.render({
+      canvasContext: ctx,
+      viewport: viewport
+    }).promise;
 
-  // extract text items for smart editing
-  const text = await page.getTextContent();
+    // Convert PDF → image for background
+    const bgImage = canvasEl.toDataURL("image/png");
 
-  text.items.forEach((t, idx) => {
-    if (!t.str.trim()) return;
-	const cleanedText = t.str.replace(/\s+/g," ").trim();
-    if(cleanedText.length <= 1) return;
+    // Clear fabric objects but keep rendered bitmap as bg of fabric
+    fabricCanvas.clear();
 
+    await new Promise(resolve => {
+      fabric.Image.fromURL(bgImage, function(img){
+        img.selectable = false;
+        img.evented = false;
 
-    // PDF.js transform → canvas coords
-    const tx = pdfjsLib.Util.transform(viewport.transform, t.transform);
-    const x = tx[4];
-    const yBaseline = tx[5];
+        img.scaleToWidth(fabricCanvas.width);
+        img.scaleToHeight(fabricCanvas.height);
 
-    // pdf.js gives height in PDF units; convert to canvas
-    const fontSize = t.height * scale;
-
-    // fabric.Textbox uses top-left, pdf.js y is baseline -> shift up
-    const top = yBaseline - fontSize;
-
-    // width fallback if pdf.js doesn't give t.width
-    const approxWidth = (t.width || (t.str.length * fontSize * 0.6)) * scale;
-
-    // white box that hides the original printed text
-    const eraseBox = new fabric.Rect({
-      left: x,
-      top: top,
-      width: approxWidth + 4,
-      height: fontSize + 4,
-      fill: "#ffffff",
-      selectable: false,
-      evented: false
+        fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas));
+        resolve();
+      });
     });
 
-    const obj = new fabric.Textbox(t.str, {
-      left: x,
-      top: top,
-      fontSize: fontSize,
-      fill: "#000",
-      width: approxWidth + 20,
-      backgroundColor: "transparent",
-      splitByGrapheme: true,
-      lockScalingFlip: true
+    // Extract text + styles for font matching
+    const textContent = await page.getTextContent();
+    const styles = textContent.styles || {};
+
+    textContent.items.forEach(t => {
+      if(!t.str.trim()) return;
+
+      const tx = pdfjsLib.Util.transform(viewport.transform, t.transform);
+      const x = tx[4];
+      const y = tx[5] - (t.height * scale);
+
+      const style = styles[t.fontName] || {};
+      let fontFamily = "Times New Roman";
+      if(style.fontFamily){
+        fontFamily = String(style.fontFamily).split(",")[0].replace(/["']/g,"");
+      }
+
+      // white box to cover original printed text
+      const eraseBox = new fabric.Rect({
+        left: x,
+        top: y,
+        width: (t.width || t.str.length * t.height) * scale + 2,
+        height: t.height * scale + 3,
+        fill: "#ffffff",
+        selectable: false,
+        evented: false
+      });
+
+      const txt = new fabric.Textbox(t.str,{
+        left: x,
+        top: y,
+        fontSize: t.height * scale,
+        fill:"#000",
+        fontFamily: fontFamily,
+        width: ((t.width || 80) * scale) + 40,
+        backgroundColor:"transparent",
+        editable: true,
+        lockScalingFlip: true,
+        splitByGrapheme: true
+      });
+
+      txt.originalBg = eraseBox;
+
+      fabricCanvas.add(eraseBox);
+      fabricCanvas.add(txt);
     });
 
-    // metadata used by real save engine
-    obj.pageIndex = n;                 // 1-based page index
-    obj.pdfRect = {
-      x: x / scale,
-      y: top / scale,
-      width: (t.width || approxWidth / scale),
-      height: t.height
-    };
-    obj.fontSizePdf = fontSize;        // keep original font size
-    obj._rectId = `${n}-${idx}`;       // stable id for this text run
-
-    fabricCanvas.add(eraseBox);
-    fabricCanvas.add(obj);
-  });
-
-  fabricCanvas.renderAll();
-}
-// Restore previous state if page was edited before
-if (pageStates[n]) {
-  fabricCanvas.loadFromJSON(pageStates[n], () => {
-    fabricCanvas.renderAll();
-  });
-}
-
-/* when user finishes editing a text box → queue real PDF edit */
-fabricCanvas.on("text:editing:exited", (e) => {
-  const obj = e.target;
-  if (!obj || !obj.pdfRect || obj.pageIndex == null) return;
-
-  // remove any previous edit for same block
-  realEdits = realEdits.filter(
-    ed => !(ed.page === obj.pageIndex && ed.rectId === obj._rectId)
-  );
-
-  realEdits.push({
-    page: obj.pageIndex,                 // 1-based page
-    rectId: obj._rectId,                 // internal id (safe extra)
-    rect: obj.pdfRect,                   // {x,y,width,height} in PDF units
-    newText: obj.text,
-    fontSize: obj.fontSizePdf || obj.fontSize || 12
-  });
-
-  document.getElementById("status").innerText =
-    "✏ Text will be saved in PDF";
-});
-
-
-async function saveFullPDF() {
-  if (!originalPdfBytes) {
-    alert("No PDF loaded");
-    return;
-  }
-
-  const pdfDocLib = await PDFLib.PDFDocument.load(originalPdfBytes);
-  const pages = pdfDocLib.getPages();
-
-  const font = await pdfDocLib.embedFont(PDFLib.StandardFonts.Helvetica);
-
-  // Means: loop through ALL pages
-  for (let i = 0; i < pages.length; i++) {
-
-    if (i + 1 !== currentPage) continue; 
-    const page = pages[i];
-
-    const { width, height } = page.getSize();
-
-    // Loop every Fabric.js text object
-    fabricCanvas.getObjects().forEach(obj => {
-
-      if (obj.type === "textbox" || obj.type === "i-text") {
-
-        const scale = height / fabricCanvas.height;
-
-        const x = obj.left * scale;
-        const y = height - (obj.top * scale) - (obj.fontSize * scale);
-
-        page.drawText(obj.text, {
-          x: x,
-          y: y,
-          size: obj.fontSize * scale,
-          font: font,
-          color: PDFLib.rgb(0, 0, 0),
-          maxWidth: obj.width * scale,
-          lineHeight: obj.fontSize * scale * 1.3
-        });
-
+    // double-click to edit text
+    fabricCanvas.off('mouse:dblclick');
+    fabricCanvas.on('mouse:dblclick', function(opt){
+      if(opt.target && (opt.target.type === "textbox" || opt.target.type === "i-text")){
+        opt.target.enterEditing();
+        opt.target.selectAll();
       }
     });
 
+    fabricCanvas.renderAll();
+    document.getElementById("status").innerText = "Page " + n + " loaded ✅";
+
+    // reset history for this page & save initial
+    history = [];
+    historyIndex = -1;
+    isSettingUpPage = false;
+    saveState();
+
+  } catch (err) {
+    console.error(err);
+    document.getElementById("status").innerText = "❌ Error loading page";
+    isSettingUpPage = false;
   }
 
-  const finalBytes = await pdfDocLib.save();
-
-  const blob = new Blob([finalBytes], { type: "application/pdf" });
-
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = "BlinkPDF_PRO_EDITED.pdf";
-  link.click();
+  isRendering = false;
 }
 
-// Learn font & size automatically
-fabricCanvas.on("selection:created", function (e) {
-  if (e.selected && e.selected[0] && e.selected[0].type.includes("text")) {
-    currentFont = e.selected[0].fontFamily || currentFont;
-    currentFontSize = e.selected[0].fontSize || currentFontSize;
-  }
-});
-
-fabricCanvas.on("selection:updated", function (e) {
-  if (e.selected && e.selected[0] && e.selected[0].type.includes("text")) {
-    currentFont = e.selected[0].fontFamily || currentFont;
-    currentFontSize = e.selected[0].fontSize || currentFontSize;
-  }
-});
-
+/* PAGE NAVIGATION */
 function prevPage(){
-  if(!pdfDoc) return;
-
-  pageStates[currentPage] = fabricCanvas.toJSON();
-
+  if (!pdfDoc) return;
   if (currentPage <= 1) return;
   showPage(currentPage - 1);
 }
-
 function nextPage(){
-  if(!pdfDoc) return;
-
-  pageStates[currentPage] = fabricCanvas.toJSON();
-
+  if (!pdfDoc) return;
   if (currentPage >= pdfDoc.numPages) return;
   showPage(currentPage + 1);
 }
 
-function startAutoSave(){
-  if(autoSaveInterval) clearInterval(autoSaveInterval);
+/* THUMBNAILS */
+async function generateThumbs(){
+  const thumbs = document.getElementById("thumbs");
+  thumbs.innerHTML = "";
 
-  autoSaveInterval = setInterval(() => {
-    if(pdfDoc){
-      pageStates[currentPage] = fabricCanvas.toJSON();
-      console.log("Auto saved page", currentPage);
-    }
-  }, 3000);
+  for(let i=1;i<=pdfDoc.numPages;i++){
+    const page = await pdfDoc.getPage(i);
+    const view = page.getViewport({ scale: 0.25 });
+
+    const c = document.createElement("canvas");
+    c.width = view.width;
+    c.height = view.height;
+
+    await page.render({ canvasContext: c.getContext("2d"), viewport: view }).promise;
+
+    const img = document.createElement("img");
+    img.src = c.toDataURL();
+    img.className = "border rounded cursor-pointer mb-2 w-full";
+
+    img.onclick = () => showPage(i);
+    thumbs.appendChild(img);
+  }
 }
-fabricCanvas.on("text:changed", function(e){
-  const obj = e.target;
-  if(!obj || !obj.text) return;
 
-  const errors = obj.text.split(" ").filter(word => word.length > 20);
+/* ZOOM / RESIZE */
+function zoomIn(){
+  baseWidth *= 1.1;
+  if(pdfDoc) showPage(currentPage);
+}
+function zoomOut(){
+  baseWidth /= 1.1;
+  if(pdfDoc) showPage(currentPage);
+}
 
-  if(errors.length > 0){
-    obj.set("underline", true);
-    obj.set("fill", "red");
-  }else{
-    obj.set("underline", false);
-    obj.set("fill", "#000");
+/* CROP USING CLIP PATH */
+function toggleCropMode(){
+  if(!pdfDoc) return;
+
+  if(cropMode){
+    cropMode = false;
+    fabricCanvas.clipPath = null;
+    cropRect = null;
+    fabricCanvas.renderAll();
+    document.getElementById("status").innerText = "Crop disabled";
+    return;
   }
 
+  cropMode = true;
+
+  // create central crop rect
+  cropRect = new fabric.Rect({
+    left: fabricCanvas.width * 0.1,
+    top: fabricCanvas.height * 0.1,
+    width: fabricCanvas.width * 0.8,
+    height: fabricCanvas.height * 0.8,
+    fill: "rgba(0,0,0,0.0)",
+    stroke: "#10b981",
+    strokeWidth: 2,
+    hasBorders: true,
+    hasControls: true,
+    selectable: true
+  });
+
+  cropRect.absolutePositioned = true;
+  fabricCanvas.add(cropRect);
+
+  fabricCanvas.clipPath = cropRect;
   fabricCanvas.renderAll();
-});
-fabricCanvas.on("mouse:dblclick", function (opt) {
-  if (opt.target && (opt.target.type === "textbox" || opt.target.type === "i-text")) {
-    opt.target.enterEditing();
-    opt.target.selectAll();
+  document.getElementById("status").innerText = "Crop mode: drag green box to set area";
+}
+
+/* AI REWRITE (local backend) */
+function openRewriteBox(){
+  document.getElementById("rewriteBox").classList.remove("hidden");
+}
+function rewriteText(){
+  const txt = document.getElementById("rewriteInput").value;
+  if(!txt.trim()) return alert("Enter text");
+
+  fetch("/ai/rewrite",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ text: txt })
+  }).then(r=>r.json())
+   .then(data=>{
+      const t = new fabric.Textbox(data.result || "",{
+        left:100,
+        top:100,
+        fontSize:18,
+        width:300
+      });
+      fabricCanvas.add(t);
+    });
+}
+
+/* FIND & REPLACE */
+function openFindReplace(){
+  document.getElementById("findReplaceBox").classList.remove("hidden");
+}
+function replaceTextAll(){
+  const f = document.getElementById("findText").value;
+  const r = document.getElementById("replaceText").value;
+
+  if(!f) return;
+
+  fabricCanvas.getObjects().forEach(o=>{
+    if((o.type === "textbox" || o.type === "i-text") && o.text.includes(f)){
+      o.text = o.text.split(f).join(r);
+    }
+  });
+  fabricCanvas.renderAll();
+}
+
+/* DELETE TEXT MODE */
+function enableDeleteMode(){
+  deleteMode = true;
+  alert("Click on a text block to delete it");
+}
+fabricCanvas.on("mouse:down", function(opt){
+  if(deleteMode && opt.target){
+    fabricCanvas.remove(opt.target);
+    deleteMode = false;
   }
 });
+
+/* STICKY COMMENT */
+function addStickyNote(){
+  const note = new fabric.Rect({
+    left:120,top:120,width:200,height:100,
+    fill:"#fff59d",rx:8,ry:8
+  });
+  const txt = new fabric.Textbox("Comment...",{
+    left:130,top:130,fontSize:14,width:180
+  });
+  fabricCanvas.add(note); fabricCanvas.add(txt);
+}
+
+/* PARAGRAPH EDITOR */
+function openParagraphEditor(){
+  if(!selectedTextObj){
+    alert("Select a text block first");
+    return;
+  }
+  document.getElementById("paraBox").classList.remove("hidden");
+  document.getElementById("paraInput").value = selectedTextObj.text || "";
+}
+function applyParagraphEdit(){
+  if(!selectedTextObj) return;
+  selectedTextObj.text = document.getElementById("paraInput").value;
+  fabricCanvas.renderAll();
+}
+
+/* SIGNATURE */
+let signCanvas = document.getElementById("signCanvas");
+let signCtx = signCanvas.getContext("2d");
+let drawingSign = false;
+
+function startSignature(){
+  document.getElementById("signBox").classList.remove("hidden");
+
+  signCanvas.onmousedown = () => { drawingSign = true; signCtx.beginPath(); };
+  signCanvas.onmouseup = () => { drawingSign = false; };
+  signCanvas.onmouseleave = () => { drawingSign = false; };
+  signCanvas.onmousemove = e => {
+    if(!drawingSign) return;
+    signCtx.lineWidth = 2;
+    signCtx.lineTo(e.offsetX,e.offsetY);
+    signCtx.stroke();
+  };
+
+  // touch support
+  signCanvas.ontouchstart = (e) => {
+    e.preventDefault();
+    drawingSign = true;
+    const rect = signCanvas.getBoundingClientRect();
+    const x = e.touches[0].clientX - rect.left;
+    const y = e.touches[0].clientY - rect.top;
+    signCtx.beginPath();
+    signCtx.moveTo(x,y);
+  };
+  signCanvas.ontouchend = () => { drawingSign = false; };
+  signCanvas.ontouchmove = (e) => {
+    e.preventDefault();
+    if(!drawingSign) return;
+    const rect = signCanvas.getBoundingClientRect();
+    const x = e.touches[0].clientX - rect.left;
+    const y = e.touches[0].clientY - rect.top;
+    signCtx.lineWidth = 2;
+    signCtx.lineTo(x,y);
+    signCtx.stroke();
+  };
+}
+
+function addSignatureToPDF(){
+  const data = signCanvas.toDataURL();
+  fabric.Image.fromURL(data, img=>{
+    img.set({ left:150, top:150, scaleX:0.5, scaleY:0.5 });
+    fabricCanvas.add(img);
+  });
+  signCtx.clearRect(0,0,signCanvas.width,signCanvas.height);
+  document.getElementById("signBox").classList.add("hidden");
+}
+
+/* OCR */
+async function runOCR(){
+  const img = document.getElementById("pdf-canvas").toDataURL("image/png");
+  const { data } = await Tesseract.recognize(img,"eng");
+  const t = new fabric.Textbox(data.text || "",{left:50,top:50,fontSize:14,width:400});
+  fabricCanvas.add(t);
+}
+
+/* =========================================================
+   MOBILE TOUCH + ZOOM SUPPORT (fabric pan/zoom)
+========================================================= */
+let lastX = 0;
+let lastY = 0;
+let isPanning = false;
+let pinchStartDist = 0;
+let lastZoom = 1;
+
+function getDistance(touches){
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+const pdfCanvas = document.getElementById("pdf-canvas");
+
+/* TOUCH START */
+pdfCanvas.addEventListener("touchstart", function(e){
+  if (e.touches.length === 1) {
+    // PAN start
+    isPanning = true;
+    lastX = e.touches[0].clientX;
+    lastY = e.touches[0].clientY;
+  }
+
+  if (e.touches.length === 2) {
+    // PINCH zoom start
+    pinchStartDist = getDistance(e.touches);
+    lastZoom = fabricCanvas.getZoom();
+  }
+}, { passive: false });
+
+/* TOUCH MOVE */
+pdfCanvas.addEventListener("touchmove", function(e){
+  e.preventDefault(); // stops page scroll only when touching canvas
+
+  // 1 finger = PAN
+  if (e.touches.length === 1 && isPanning) {
+    const touch = e.touches[0];
+    const dx = touch.clientX - lastX;
+    const dy = touch.clientY - lastY;
+
+    fabricCanvas.relativePan(new fabric.Point(dx, dy));
+
+    lastX = touch.clientX;
+    lastY = touch.clientY;
+  }
+
+  // 2 finger = PINCH ZOOM
+  if (e.touches.length === 2) {
+    const dist = getDistance(e.touches);
+    const zoom = Math.min(5, Math.max(0.5, lastZoom * (dist / pinchStartDist)));
+
+    fabricCanvas.zoomToPoint(
+      new fabric.Point(
+        (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        (e.touches[0].clientY + e.touches[1].clientY) / 2
+      ),
+      zoom
+    );
+  }
+}, { passive: false });
+
+/* TOUCH END */
+pdfCanvas.addEventListener("touchend", function(){
+  isPanning = false;
+  pinchStartDist = 0;
+});
+
+/* =========================================================
+   REAL SAVE ENGINE (Level 2)
+   - uses current page with edits from fabric
+   - uses original raster for other pages
+========================================================= */
+async function saveFullPDF(){
+
+  if(!pdfDoc){
+    alert("No PDF loaded");
+    return;
+  }
+
+  document.getElementById("status").innerText = "⏳ Rendering edited PDF...";
+
+  const PDFLib = window.PDFLib;
+  const newPdf = await PDFLib.PDFDocument.create();
+
+  for(let i=1;i<=pdfDoc.numPages;i++){
+
+    let dataUrl;
+
+    if (i === currentPage) {
+      // use EDITED canvas for current page
+      dataUrl = fabricCanvas.toDataURL({
+        format: "png",
+        multiplier: 2
+      });
+    } else {
+      // render original page (no edits) to image
+      const page = await pdfDoc.getPage(i);
+
+      const unscaled = page.getViewport({ scale: 1 });
+      const scale = baseWidth / unscaled.width;
+      const viewport = page.getViewport({ scale });
+
+      const tempCanvas = document.createElement("canvas");
+      tempCanvas.width = viewport.width;
+      tempCanvas.height = viewport.height;
+
+      await page.render({
+        canvasContext: tempCanvas.getContext("2d"),
+        viewport
+      }).promise;
+
+      dataUrl = tempCanvas.toDataURL("image/png");
+    }
+
+    const imageBytes = await fetch(dataUrl).then(res => res.arrayBuffer());
+    const pngImage = await newPdf.embedPng(imageBytes);
+
+    const page = newPdf.addPage([pngImage.width, pngImage.height]);
+
+    page.drawImage(pngImage,{
+      x:0,
+      y:0,
+      width: pngImage.width,
+      height: pngImage.height
+    });
+  }
+
+  const pdfBytes = await newPdf.save();
+  const blob = new Blob([pdfBytes], { type: "application/pdf" });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "BlinkPDF_edited.pdf";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+
+  document.getElementById("status").innerText = "✅ Edited PDF downloaded";
+}
 </script>
 
 {% endblock %}
