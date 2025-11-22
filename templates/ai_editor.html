@@ -1027,88 +1027,65 @@ pdfCanvas.addEventListener("touchend", function(){
 
 document.addEventListener("DOMContentLoaded", function(){
 
-    const uploadBtn = document.getElementById("uploadBtn");
-    const fileInput = document.getElementById("pdfUpload");
-    const status = document.getElementById("status");
+  const uploadBtn = document.getElementById("uploadBtn");
+  const fileInput = document.getElementById("pdfUpload");
+  const status = document.getElementById("status");
 
-    if(!uploadBtn){
-        console.error("❌ uploadBtn not found");
-        return;
+  uploadBtn.addEventListener("click", async function(){
+
+    const file = fileInput.files[0];
+
+    if (!file) {
+      alert("Please select a PDF first");
+      return;
     }
 
-    uploadBtn.addEventListener("click", async function(){
+    console.log("✅ Button working");
 
-        console.log("✅ Upload button clicked");
+    /* 1. Show PDF on canvas */
+    status.innerText = "Loading PDF on canvas...";
 
-        const file = fileInput.files[0];
+    const reader = new FileReader();
+    reader.onload = async function(e){
+      const bytes = new Uint8Array(e.target.result);
 
-        if(!file){
-            alert("Please select a PDF");
-            return;
-        }
+      pdfDoc = await pdfjsLib.getDocument({data: bytes}).promise;
+      currentPage = 1;
 
-        // --------- PREVIEW LOCALLY (Canvas) ---------
-        status.innerText = "Loading PDF on canvas...";
+      document.getElementById("pageCount").innerText = pdfDoc.numPages;
 
-        const reader = new FileReader();
+      await showPage(currentPage);
+      generateThumbs();
 
-        reader.onload = async function(e){
+      status.innerText = "✅ PDF loaded on canvas";
+    };
 
-            const bytes = new Uint8Array(e.target.result);
-            pdfDoc = await pdfjsLib.getDocument({data: bytes}).promise;
-
-            currentPage = 1;
-
-            const pageCount = document.getElementById("pageCount");
-            if(pageCount){
-                pageCount.innerText = pdfDoc.numPages;
-            }
-
-            if(typeof showPage === "function"){
-                await showPage(currentPage);
-            }
-
-            if(typeof generateThumbs === "function"){
-                generateThumbs();
-            }
-
-            status.innerText = "✅ PDF loaded on canvas";
-        };
-
-        reader.readAsArrayBuffer(file);
+    reader.readAsArrayBuffer(file);
 
 
-        // --------- UPLOAD TO SERVER ---------
-        const formData = new FormData();
-        formData.append("file", file);
+    /* 2. Upload to server */
+    const formData = new FormData();
+    formData.append("file", file);
 
-        status.innerText = "Uploading to server...";
+    status.innerText = "Uploading to server...";
 
-        try{
-            const response = await fetch("/ai/upload-pdf", {
-                method: "POST",
-                body: formData
-            });
-
-            const result = await response.json();
-
-            if(result.success){
-                window.serverPDF = result.filename;
-                status.innerText = "✅ Ready for editing";
-            }else{
-                status.innerText = "❌ Upload failed";
-            }
-
-        }catch(err){
-            console.error(err);
-            status.innerText = "❌ Server error";
-        }
-
+    const response = await fetch("/ai/upload-pdf", {
+      method: "POST",
+      body: formData
     });
 
+    const result = await response.json();
+
+    if(result.success){
+      window.serverPDF = result.filename;
+      status.innerText = "✅ Ready for editing";
+    } else {
+      status.innerText = "❌ Upload failed";
+    }
+
+  });
+
 });
-
-
 </script>
 
 {% endblock %}
