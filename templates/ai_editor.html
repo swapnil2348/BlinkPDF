@@ -523,19 +523,7 @@ fabricCanvas.on("mouse:dblclick", function(opt){
 });
 
 
-  // Enable DOUBLE CLICK → EDIT
-  fabricCanvas.on("mouse:dblclick", function(opt){
-    if(opt.target && (opt.target.type === "textbox" || opt.target.type === "i-text")){
-      opt.target.enterEditing();
-      opt.target.selectAll();
-    }
-  });
-
-  txt.originalBg = eraseBox;
-
-  fabricCanvas.add(eraseBox);
-  fabricCanvas.add(txt);
-});
+  
 
     document.getElementById("pageNum").innerText = n;
     document.getElementById("status").innerText = `Page ${n} loaded ✅`;
