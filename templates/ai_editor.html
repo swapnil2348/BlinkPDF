@@ -280,7 +280,9 @@ let lastTouchY = 0;
 const wrap = document.querySelector(".touch-pan");
 
 if (wrap) {
+
   wrap.addEventListener('touchstart', function(e){
+
     if(e.touches.length === 2){
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
@@ -291,9 +293,13 @@ if (wrap) {
       lastTouchX = e.touches[0].clientX;
       lastTouchY = e.touches[0].clientY;
     }
+
   }, { passive:false });
 
+
   wrap.addEventListener('touchmove', function(e){
+
+    // PINCH ZOOM
     if(e.touches.length === 2){
       e.preventDefault();
 
@@ -310,6 +316,7 @@ if (wrap) {
       lastTouchDistance = newDistance;
     }
 
+    // 1 FINGER PAN
     if(e.touches.length === 1){
       const dx = lastTouchX - e.touches[0].clientX;
       const dy = lastTouchY - e.touches[0].clientY;
@@ -320,8 +327,11 @@ if (wrap) {
       lastTouchX = e.touches[0].clientX;
       lastTouchY = e.touches[0].clientY;
     }
+
   }, { passive:false });
-}
+
+}   // ✅ THIS WAS MISSING
+
 
 // ---------------- CORE VARIABLES ----------------
 
@@ -512,29 +522,6 @@ fabricCanvas.on("mouse:dblclick", function(opt){
   }
 });
 
-
-  // White erase box
-  const eraseBox = new fabric.Rect({
-    left: x,
-    top: y,
-    width: (t.width || t.str.length * t.height) * scale + 4,
-    height: t.height * scale + 4,
-    fill: "#ffffff",
-    selectable: false,
-    evented: false
-  });
-
-  const txt = new fabric.Textbox(t.str,{
-    left: x,
-    top: y,
-    fontSize: t.height * scale,
-    fill:"#000",
-    fontFamily: fontFamily,
-    width: ((t.width || 80) * scale) + 40,
-    backgroundColor:"transparent",
-    editable: true,
-    splitByGrapheme: true
-  });
 
   // Enable DOUBLE CLICK → EDIT
   fabricCanvas.on("mouse:dblclick", function(opt){
