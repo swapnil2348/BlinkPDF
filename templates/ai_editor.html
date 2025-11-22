@@ -424,6 +424,64 @@ async function showPage(n) {
         resolve();
       });
     });
+    
+	// ========== TEXT LAYER (EDITABLE) ==========
+    const textContent = await page.getTextContent();
+    const styles = textContent.styles || {};
+
+textContent.items.forEach(t => {
+
+  if(!t.str.trim()) return;
+
+    const tx = pdfjsLib.Util.transform(viewport.transform, t.transform);
+    const x = tx[4];
+    const y = tx[5] - (t.height * scale);
+
+    const style = styles[t.fontName] || {};
+    let fontFamily = "Times New Roman";
+
+  if(style.fontFamily){
+    fontFamily = String(style.fontFamily)
+      .split(",")[0]
+      .replace(/["']/g,"");
+  }
+
+  // White erase box
+  const eraseBox = new fabric.Rect({
+    left: x,
+    top: y,
+    width: (t.width || t.str.length * t.height) * scale + 4,
+    height: t.height * scale + 4,
+    fill: "#ffffff",
+    selectable: false,
+    evented: false
+  });
+
+  const txt = new fabric.Textbox(t.str,{
+    left: x,
+    top: y,
+    fontSize: t.height * scale,
+    fill:"#000",
+    fontFamily: fontFamily,
+    width: ((t.width || 80) * scale) + 40,
+    backgroundColor:"transparent",
+    editable: true,
+    splitByGrapheme: true
+  });
+
+  // Enable DOUBLE CLICK → EDIT
+  fabricCanvas.on("mouse:dblclick", function(opt){
+    if(opt.target && (opt.target.type === "textbox" || opt.target.type === "i-text")){
+      opt.target.enterEditing();
+      opt.target.selectAll();
+    }
+  });
+
+  txt.originalBg = eraseBox;
+
+  fabricCanvas.add(eraseBox);
+  fabricCanvas.add(txt);
+});
 
     document.getElementById("pageNum").innerText = n;
     document.getElementById("status").innerText = `Page ${n} loaded ✅`;
