@@ -29,6 +29,18 @@
   </div>
 
   <ul id="fileList" class="mt-4 space-y-2"></ul>
+
+  <!-- LIVE PREVIEW -->
+  <div id="preview-container"
+       class="w-full h-96 border rounded-xl bg-gray-50 flex items-center justify-center mb-4 overflow-hidden relative">
+    <canvas id="pdf-preview"></canvas>
+
+    <!-- Watermark live text -->
+    <div id="wm-preview"
+         class="absolute text-gray-600 font-bold pointer-events-none opacity-40 hidden">
+    </div>
+  </div>
+
   <p class="text-xs text-gray-500 mt-2">
     Drag files up or down to rearrange the order
   </p>
@@ -39,7 +51,7 @@
 {% if tool.slug == "compress-pdf" %}
 <div class="p-4 bg-gray-50 rounded-xl border">
   <h3 class="font-semibold mb-2">Compression Level</h3>
-  <select name="level" class="border p-2 rounded w-full">
+  <select name="level" id="compression_level" class="border p-2 rounded w-full">
     <option value="low">Low (Best Quality)</option>
     <option value="medium">Medium (Balanced)</option>
     <option value="high">High (Smallest Size)</option>
@@ -49,14 +61,16 @@
 
 {% if tool.slug in ["crop-pdf","resize-pdf"] %}
 <div class="p-4 bg-gray-50 rounded-xl border grid grid-cols-2 gap-3">
-  <input type="number" name="width" placeholder="Width (px)" class="border p-2 rounded">
-  <input type="number" name="height" placeholder="Height (px)" class="border p-2 rounded">
+  <input type="number" name="width" id="width" placeholder="Width (px)" class="border p-2 rounded">
+  <input type="number" name="height" id="height" placeholder="Height (px)" class="border p-2 rounded">
 </div>
 {% endif %}
 
 {% if tool.slug == "rotate-pdf" %}
 <div class="p-4 bg-gray-50 rounded-xl border">
-  <select name="angle" class="border p-2 rounded w-full">
+  <label class="text-sm font-semibold">Angle</label>
+  <select name="angle" id="angle" class="border p-2 rounded w-full">
+    <option value="0">0°</option>
     <option value="90">90°</option>
     <option value="180">180°</option>
     <option value="270">270°</option>
@@ -64,28 +78,22 @@
 </div>
 {% endif %}
 
-{% if tool.slug == "protect-pdf" %}
+{% if tool.slug == "protect-pdf" or tool.slug == "unlock-pdf" %}
 <div class="p-4 bg-gray-50 rounded-xl border">
   <input type="password" name="password" placeholder="Enter password"
          class="border p-2 rounded w-full">
 </div>
 {% endif %}
 
-{% if tool.slug == "unlock-pdf" %}
-<div class="p-4 bg-gray-50 rounded-xl border">
-  <input type="password" name="password" placeholder="Current PDF password"
-         class="border p-2 rounded w-full">
-</div>
-{% endif %}
-
 {% if tool.slug == "watermark-pdf" %}
 <div class="p-4 bg-gray-50 rounded-xl border space-y-2">
-  <input type="text" name="text" placeholder="Watermark text"
+  <input type="text" name="text" id="wm_text" placeholder="Watermark text"
          class="border p-2 rounded w-full">
+
   <div class="flex gap-2">
-    <input type="number" name="x" placeholder="X" class="border p-2 rounded w-24">
-    <input type="number" name="y" placeholder="Y" class="border p-2 rounded w-24">
-    <input type="number" name="size" placeholder="Size" class="border p-2 rounded w-24">
+    <input type="number" name="x" id="wm_x" placeholder="X" class="border p-2 rounded w-24">
+    <input type="number" name="y" id="wm_y" placeholder="Y" class="border p-2 rounded w-24">
+    <input type="number" name="size" id="wm_size" placeholder="Size" class="border p-2 rounded w-24">
   </div>
 </div>
 {% endif %}
@@ -115,6 +123,7 @@
 <!-- RANDOM TOOL SUGGESTIONS -->
 <div class="mt-10">
   <h2 class="font-bold mb-4 text-xl">Try Other Tools</h2>
+
   <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
     {% for t in random_tools %}
     <a href="{{ t.url if t.url else url_for('tool_page', slug=t.slug) }}"
@@ -126,18 +135,28 @@
   </div>
 </div>
 
+<!-- SORT + PREVIEW + LIVE EFFECTS -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
 <script>
 const fileInput = document.getElementById("fileInput");
 const dropZone = document.getElementById("dropZone");
 const fileList = document.getElementById("fileList");
+const canvas = document.getElementById("pdf-preview");
+const ctx = canvas.getContext("2d");
+const wmBox = document.getElementById("wm-preview");
+
 let filesArray = [];
+let pdfDoc = null;
+let currentAngle = 0;
 
 dropZone.onclick = () => fileInput.click();
 
 fileInput.onchange = (e) => {
-  for (let file of e.target.files) filesArray.push(file);
+  filesArray = [...e.target.files];
   renderFiles();
+  if (filesArray[0]) loadPreview(filesArray[0]);
 }
 
 function renderFiles(){
@@ -150,7 +169,69 @@ function renderFiles(){
   });
   Sortable.create(fileList,{animation:150});
 }
-function removeFile(i){filesArray.splice(i,1);renderFiles();}
+
+function removeFile(i){
+  filesArray.splice(i,1);
+  renderFiles();
+}
+
+function loadPreview(file){
+  const reader = new FileReader();
+  reader.onload = function() {
+    const typedarray = new Uint8Array(this.result);
+    pdfjsLib.getDocument(typedarray).promise.then(function(pdf){
+      pdfDoc = pdf;
+      renderPage();
+    });
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderPage(){
+  if(!pdfDoc) return;
+  pdfDoc.getPage(1).then(page=>{
+    const viewport = page.getViewport({ scale: 1, rotation: currentAngle });
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+    page.render({canvasContext: ctx, viewport});
+  });
+}
+
+/* LIVE ROTATION */
+const angleInput = document.getElementById("angle");
+if(angleInput){
+  angleInput.onchange = ()=>{
+    currentAngle = parseInt(angleInput.value);
+    renderPage();
+  };
+}
+
+/* LIVE RESIZE / CROP */
+const widthInput = document.getElementById("width");
+const heightInput = document.getElementById("height");
+
+if(widthInput && heightInput){
+  widthInput.oninput = heightInput.oninput = ()=>{
+    canvas.style.width = widthInput.value + "px";
+    canvas.style.height = heightInput.value + "px";
+  }
+}
+
+/* LIVE WATERMARK */
+const wmText = document.getElementById("wm_text");
+const wmX = document.getElementById("wm_x");
+const wmY = document.getElementById("wm_y");
+const wmSize = document.getElementById("wm_size");
+
+if(wmText){
+  wmText.oninput = ()=>{
+    wmBox.style.display="block";
+    wmBox.innerText = wmText.value;
+  }
+  wmX.oninput = ()=> wmBox.style.left = wmX.value+"px";
+  wmY.oninput = ()=> wmBox.style.top = wmY.value+"px";
+  wmSize.oninput = ()=> wmBox.style.fontSize = wmSize.value+"px";
+}
 </script>
 
 {% endblock %}
