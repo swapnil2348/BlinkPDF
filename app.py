@@ -183,6 +183,10 @@ def index():
 @app.route("/ai-tools")
 def ai_tools_page():
     return render_template("ai_tools.html")
+   
+@app.route("/privacy")
+def privacy():
+    return render_template("privacy.html")
     
 @app.route("/tool/<slug>")
 def tool_page(slug):
