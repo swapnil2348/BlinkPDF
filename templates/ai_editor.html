@@ -32,15 +32,10 @@
   <!-- Upload -->
 <div class="bg-white p-6 rounded-xl shadow border mb-6">
 
-  <form
-    id="uploadForm"
-    enctype="multipart/form-data"
-    class="flex flex-col sm:flex-row gap-4"
-  >
+  <form id="uploadForm" class="flex flex-col sm:flex-row gap-4">
 
     <input
       type="file"
-      name="file"
       id="pdfUpload"
       accept="application/pdf"
       required
@@ -48,7 +43,8 @@
     >
 
     <button
-      type="submit"
+      type="button"
+      id="uploadBtn"
       class="bg-violet-600 text-white px-6 py-2 rounded hover:bg-violet-700 w-full sm:w-auto"
     >
       Upload & Start
@@ -57,6 +53,7 @@
   </form>
 
   <p id="status" class="text-sm mt-3 text-violet-600 font-semibold"></p>
+
 </div>
 
     <!-- Thumbnails -->
@@ -449,7 +446,7 @@ fabricCanvas.on("selection:updated", function(e){
 });
 
 /* LOAD PDF + Upload to server */
-async function loadPDF(){
+async function OLD_loadPDF(){
 
   const fileInput = document.getElementById("pdfUpload");
   const file = fileInput.files[0];
@@ -926,7 +923,7 @@ async function saveFullPDF(){
 
 
 // Mobile canvas drag support
-const scrollBox = document.getElementById("pdfScrollWrapper");
+const scrollBox = document.querySelector(".touch-pan");
 let isDown = false;
 let startX, startY, scrollLeft, scrollTop;
 
@@ -1028,44 +1025,90 @@ pdfCanvas.addEventListener("touchend", function(){
 
 /* ================= END MOBILE PATCH ================= */
 
-  document.querySelector("form").addEventListener("submit", function(){
-  document.getElementById("status").innerText = "⏳ Processing your PDF...";
-});
+document.addEventListener("DOMContentLoaded", function(){
 
-document.getElementById("uploadForm").addEventListener("submit", async function(e){
-    e.preventDefault();
-
+    const uploadBtn = document.getElementById("uploadBtn");
     const fileInput = document.getElementById("pdfUpload");
     const status = document.getElementById("status");
 
-    if(!fileInput.files.length){
-        status.innerText = "Please select a file";
+    if(!uploadBtn){
+        console.error("❌ uploadBtn not found");
         return;
     }
 
-    const formData = new FormData();
-    formData.append("file", fileInput.files[0]);
+    uploadBtn.addEventListener("click", async function(){
 
-    status.innerText = "⏳ Uploading file...";
+        console.log("✅ Upload button clicked");
 
-    const response = await fetch("/ai/upload-pdf", {
-        method: "POST",
-        body: formData
+        const file = fileInput.files[0];
+
+        if(!file){
+            alert("Please select a PDF");
+            return;
+        }
+
+        // --------- PREVIEW LOCALLY (Canvas) ---------
+        status.innerText = "Loading PDF on canvas...";
+
+        const reader = new FileReader();
+
+        reader.onload = async function(e){
+
+            const bytes = new Uint8Array(e.target.result);
+            pdfDoc = await pdfjsLib.getDocument({data: bytes}).promise;
+
+            currentPage = 1;
+
+            const pageCount = document.getElementById("pageCount");
+            if(pageCount){
+                pageCount.innerText = pdfDoc.numPages;
+            }
+
+            if(typeof showPage === "function"){
+                await showPage(currentPage);
+            }
+
+            if(typeof generateThumbs === "function"){
+                generateThumbs();
+            }
+
+            status.innerText = "✅ PDF loaded on canvas";
+        };
+
+        reader.readAsArrayBuffer(file);
+
+
+        // --------- UPLOAD TO SERVER ---------
+        const formData = new FormData();
+        formData.append("file", file);
+
+        status.innerText = "Uploading to server...";
+
+        try{
+            const response = await fetch("/ai/upload-pdf", {
+                method: "POST",
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if(result.success){
+                window.serverPDF = result.filename;
+                status.innerText = "✅ Ready for editing";
+            }else{
+                status.innerText = "❌ Upload failed";
+            }
+
+        }catch(err){
+            console.error(err);
+            status.innerText = "❌ Server error";
+        }
+
     });
 
-    const result = await response.json();
-
-    if(result.success){
-        status.innerText = "✅ File loaded. Ready to edit.";
-
-        // LOAD PDF INTO YOUR CANVAS
-        loadPDF(result.url);
-
-    } else {
-        status.innerText = "❌ Upload failed";
-    }
-
 });
+
+
 </script>
 
 {% endblock %}
