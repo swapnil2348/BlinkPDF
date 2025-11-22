@@ -400,7 +400,7 @@ class PDFProcessor:
         imgs[0].save(out, save_all=True, append_images=imgs[1:])
         return out
 
-       # ---------------- EXTRACT TEXT (NORMAL + OCR) ----------------
+    # ---------------- EXTRACT TEXT (NORMAL + OCR) ----------------
     def extract_text(self, input_path, out_dir):
         reader = PdfReader(input_path)
         text = ""
@@ -414,16 +414,15 @@ class PDFProcessor:
         # If text is too short -> run OCR
         if len(text.strip()) < 100:
             # OCR using PyMuPDF instead of pdf2image
-                doc = fitz.open(input_path)
+            doc = fitz.open(input_path)
 
             for page in doc:
-            pix = page.get_pixmap(dpi=300)
-            img = Image.open(io.BytesIO(pix.tobytes("png")))
-            ocr_text = pytesseract.image_to_string(img)
-            text += ocr_text + "\n"
+                pix = page.get_pixmap(dpi=300)
+                img = Image.open(io.BytesIO(pix.tobytes("png")))
+                ocr_text = pytesseract.image_to_string(img)
+                text += ocr_text + "\n"
 
-        doc.close()
-
+            doc.close()
 
         if not text.strip():
             text = "No text found in this document."
@@ -433,8 +432,6 @@ class PDFProcessor:
             f.write(text)
 
         return out
-
-
 
     # ---------------- METADATA ----------------
     def metadata_editor(self, input_path, out_dir, form):
