@@ -179,19 +179,23 @@ def inject_globals():
 @app.route("/")
 def index():
     return render_template("index.html")
-    
+
+
 @app.route("/ai-tools")
 def ai_tools_page():
     return render_template("ai_tools.html")
-   
+
+
 @app.route("/privacy")
 def privacy():
     return render_template("privacy.html")
-    
+
+
 @app.route("/terms")
 def terms():
     return render_template("terms.html")
-    
+
+
 @app.route("/tool/<slug>")
 def tool_page(slug):
     tool = next((t for t in TOOLS if t["slug"] == slug), None)
@@ -199,7 +203,7 @@ def tool_page(slug):
         flash("Tool not found")
         return redirect(url_for("index"))
     return render_template("tool_page.html", tool=tool)
-
+    
 @app.route('/googlefe495bc7600f4865.html')
 def google_verify():
     return send_from_directory(os.path.dirname(os.path.abspath(__file__)), 'googlefe495bc7600f4865.html')
