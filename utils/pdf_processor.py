@@ -3,7 +3,6 @@ import io
 import zipfile
 import uuid
 import pytesseract
-# from pdf2image import convert_from_path
 from shutil import copyfile
 from PIL import Image
 from PyPDF2 import PdfReader, PdfWriter
@@ -414,11 +413,17 @@ class PDFProcessor:
 
         # If text is too short -> run OCR
         if len(text.strip()) < 100:
-            images = convert_from_path(input_path, dpi=300)
+            # OCR using PyMuPDF instead of pdf2image
+                doc = fitz.open(input_path)
 
-            for img in images:
-                ocr_text = pytesseract.image_to_string(img)
-                text += ocr_text + "\n"
+            for page in doc:
+            pix = page.get_pixmap(dpi=300)
+            img = Image.open(io.BytesIO(pix.tobytes("png")))
+            ocr_text = pytesseract.image_to_string(img)
+            text += ocr_text + "\n"
+
+        doc.close()
+
 
         if not text.strip():
             text = "No text found in this document."

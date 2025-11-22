@@ -183,6 +183,13 @@ def inject_globals():
 # --------------------------------------------------------------------
 # BASIC PAGES
 # --------------------------------------------------------------------
+@app.route('/check-token')
+def check_token():
+    token = os.environ.get("HR_TOKEN")
+    if token:
+        return "✅ HR_TOKEN is working"
+    else:
+        return "❌ HR_TOKEN not found"
 
 @app.route("/")
 def index():
@@ -358,6 +365,39 @@ def ai_table_extract():
 
     tables = ask_ai(f"Extract tables as CSV:\n{text[:6000]}")
     return jsonify({"tables": tables})
+
+
+@app.route("/ai/real-replace", methods=["POST"])
+def ai_real_replace():
+    file = request.files.get("file")
+    find_text = request.form.get("find")
+    replace_text = request.form.get("replace")
+
+    if not file or not find_text or not replace_text:
+        return jsonify({"error": "Missing file or replace data"}), 400
+
+    source_name = f"{uuid.uuid4().hex}_source.pdf"
+    final_name = f"{uuid.uuid4().hex}_final.pdf"
+
+    source_path = os.path.join(UPLOAD_FOLDER, source_name)
+    output_path = os.path.join(PROCESSED_FOLDER, final_name)
+
+    file.save(source_path)
+
+    # 1. REAL delete inside PDF (not overlay)
+    redacted_file = pdf.redact_pdf(source_path, PROCESSED_FOLDER, {
+        "text": find_text
+    })
+
+    # 2. REAL insert new text
+    replaced_file = pdf.annotate_pdf(redacted_file, PROCESSED_FOLDER, {
+        "text": replace_text,
+        "x": 100,
+        "y": 100,
+        "size": 16
+    })
+
+    return send_file(replaced_file, as_attachment=True)
 
 
 # --------------------------------------------------------------------

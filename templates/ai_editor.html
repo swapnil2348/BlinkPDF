@@ -13,6 +13,16 @@
   }
   .tool-btn:hover{ background:#e5e7eb; }
   .tool-btn.active { background:#7c3aed; color:white; }
+  
+  /* MOBILE TOUCH FIX FOR PDF CANVAS */
+#pdf-canvas {
+  touch-action: none;          /* allow custom gestures */
+  -ms-touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
 </style>
 
 <section class="max-w-7xl mx-auto px-4 py-8">
@@ -201,6 +211,71 @@
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 
 <script>
+let canvas = document.getElementById("pdf-canvas");
+
+let lastX = 0, lastY = 0;
+let startX = 0, startY = 0;
+let isDragging = false;
+let lastDist = 0;
+
+// Prevent normal page scroll on touch
+canvas.addEventListener("touchstart", function(e) {
+    e.preventDefault();
+
+    if (e.touches.length === 1) {
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        isDragging = true;
+    }
+
+    if (e.touches.length === 2) {
+        lastDist = Math.hypot(
+            e.touches[0].clientX - e.touches[1].clientX,
+            e.touches[0].clientY - e.touches[1].clientY
+        );
+    }
+}, { passive: false });
+
+canvas.addEventListener("touchmove", function(e) {
+    e.preventDefault();
+
+    // Drag (1 finger)
+    if (e.touches.length === 1 && isDragging) {
+        let dx = e.touches[0].clientX - startX;
+        let dy = e.touches[0].clientY - startY;
+
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+
+        canvas.parentElement.scrollLeft -= dx;
+        canvas.parentElement.scrollTop -= dy;
+    }
+
+    // Pinch to zoom (2 fingers)
+    if (e.touches.length === 2) {
+        let dist = Math.hypot(
+            e.touches[0].clientX - e.touches[1].clientX,
+            e.touches[0].clientY - e.touches[1].clientY
+        );
+
+        if (lastDist) {
+            let zoomAmount = dist > lastDist ? 0.05 : -0.05;
+            scale += zoomAmount;
+
+            if (scale < 0.5) scale = 0.5;
+            if (scale > 5) scale = 5;
+
+            renderPage(pageNum);
+        }
+
+        lastDist = dist;
+    }
+}, { passive: false });
+
+canvas.addEventListener("touchend", function() {
+    isDragging = false;
+});
+
 /******** MOBILE TOUCH CONTROLS ********/
 let lastTouchDistance = 0;
 let lastTouchX = 0;
@@ -612,17 +687,43 @@ function openFindReplace(){
   document.getElementById("findReplaceBox").classList.remove("hidden");
 }
 function replaceTextAll(){
-  const f = document.getElementById("findText").value;
-  const r = document.getElementById("replaceText").value;
 
-  if(!f) return;
+  const fileInput = document.getElementById("pdfUpload");
+  const find = document.getElementById("findText").value;
+  const replace = document.getElementById("replaceText").value;
 
-  fabricCanvas.getObjects().forEach(o=>{
-    if((o.type === "textbox" || o.type === "i-text") && o.text.includes(f)){
-      o.text = o.text.split(f).join(r);
-    }
+  if(!fileInput.files.length){
+    alert("Upload a PDF first");
+    return;
+  }
+
+  if(!find){
+    alert("Enter text to replace");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", fileInput.files[0]);
+  formData.append("find", find);
+  formData.append("replace", replace);
+
+  fetch("/ai/real-replace", {
+    method: "POST",
+    body: formData
+  })
+  .then(res => res.blob())
+  .then(blob => {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "BlinkPDF_REAL_EDIT.pdf";
+    a.click();
+  })
+  .catch(err => {
+    alert("Error doing real replace");
+    console.error(err);
   });
-  fabricCanvas.renderAll();
+
 }
 
 /* DELETE TEXT MODE */
