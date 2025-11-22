@@ -225,132 +225,112 @@
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 
 <script>
+
 let canvas = document.getElementById("pdf-canvas");
 
-let lastX = 0, lastY = 0;
-let startX = 0, startY = 0;
-let isDragging = false;
-let lastDist = 0;
+// ---------------- BASIC TOUCH PAN ----------------
+let startX = 0, startY = 0, isDragging = false, lastDist = 0;
 
 // Prevent normal page scroll on touch
+if(canvas){
 canvas.addEventListener("touchstart", function(e) {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (e.touches.length === 1) {
-        startX = e.touches[0].clientX;
-        startY = e.touches[0].clientY;
-        isDragging = true;
-    }
+  if (e.touches.length === 1) {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    isDragging = true;
+  }
 
-    if (e.touches.length === 2) {
-        lastDist = Math.hypot(
-            e.touches[0].clientX - e.touches[1].clientX,
-            e.touches[0].clientY - e.touches[1].clientY
-        );
-    }
+  if (e.touches.length === 2) {
+    lastDist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+  }
 }, { passive: false });
 
 canvas.addEventListener("touchmove", function(e) {
-    e.preventDefault();
+  e.preventDefault();
 
-    // Drag (1 finger)
-    if (e.touches.length === 1 && isDragging) {
-        let dx = e.touches[0].clientX - startX;
-        let dy = e.touches[0].clientY - startY;
+  if (e.touches.length === 1 && isDragging) {
+    let dx = e.touches[0].clientX - startX;
+    let dy = e.touches[0].clientY - startY;
 
-        startX = e.touches[0].clientX;
-        startY = e.touches[0].clientY;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
 
-        canvas.parentElement.scrollLeft -= dx;
-        canvas.parentElement.scrollTop -= dy;
-    }
+    canvas.parentElement.scrollLeft -= dx;
+    canvas.parentElement.scrollTop -= dy;
+  }
 
-    // Pinch to zoom (2 fingers)
-    if (e.touches.length === 2) {
-        let dist = Math.hypot(
-            e.touches[0].clientX - e.touches[1].clientX,
-            e.touches[0].clientY - e.touches[1].clientY
-        );
-
-        if (lastDist) {
-            let zoomAmount = dist > lastDist ? 0.05 : -0.05;
-            scale += zoomAmount;
-
-            if (scale < 0.5) scale = 0.5;
-            if (scale > 5) scale = 5;
-
-            renderPage(pageNum);
-        }
-
-        lastDist = dist;
-    }
 }, { passive: false });
 
-canvas.addEventListener("touchend", function() {
-    isDragging = false;
+canvas.addEventListener("touchend", function () {
+  isDragging = false;
 });
+}
 
-/******** MOBILE TOUCH CONTROLS ********/
+// ---------------- SAFE WRAP TOUCH ----------------
+
 let lastTouchDistance = 0;
 let lastTouchX = 0;
 let lastTouchY = 0;
 
 const wrap = document.querySelector(".touch-pan");
-if(wrap){
+
+if (wrap) {
   wrap.addEventListener('touchstart', function(e){
-  wrap.addEventListener('touchstart', function(e){
-  if(e.touches.length === 2){
-    const dx = e.touches[0].clientX - e.touches[1].clientX;
-    const dy = e.touches[0].clientY - e.touches[1].clientY;
-    lastTouchDistance = Math.sqrt(dx * dx + dy * dy);
-  }
-
-  if(e.touches.length === 1){
-    lastTouchX = e.touches[0].clientX;
-    lastTouchY = e.touches[0].clientY;
-  }
-}, { passive:false });
-
-wrap.addEventListener('touchmove', function(e){
-  // PINCH ZOOM
-  if(e.touches.length === 2){
-    e.preventDefault();
-
-    const dx = e.touches[0].clientX - e.touches[1].clientX;
-    const dy = e.touches[0].clientY - e.touches[1].clientY;
-    const newDistance = Math.sqrt(dx * dx + dy * dy);
-
-    if(newDistance > lastTouchDistance){
-      zoomIn();
-    } else if(newDistance < lastTouchDistance){
-      zoomOut();
+    if(e.touches.length === 2){
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      lastTouchDistance = Math.sqrt(dx * dx + dy * dy);
     }
 
-    lastTouchDistance = newDistance;
-  }
+    if(e.touches.length === 1){
+      lastTouchX = e.touches[0].clientX;
+      lastTouchY = e.touches[0].clientY;
+    }
+  }, { passive:false });
 
-  // 1 FINGER PAN
-  if(e.touches.length === 1){
-    const dx = lastTouchX - e.touches[0].clientX;
-    const dy = lastTouchY - e.touches[0].clientY;
+  wrap.addEventListener('touchmove', function(e){
+    if(e.touches.length === 2){
+      e.preventDefault();
 
-    wrap.scrollLeft += dx;
-    wrap.scrollTop += dy;
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const newDistance = Math.sqrt(dx * dx + dy * dy);
 
-    lastTouchX = e.touches[0].clientX;
-    lastTouchY = e.touches[0].clientY;
-  }
+      if(newDistance > lastTouchDistance){
+        zoomIn();
+      } else if(newDistance < lastTouchDistance){
+        zoomOut();
+      }
 
-}, { passive:false });
+      lastTouchDistance = newDistance;
+    }
+
+    if(e.touches.length === 1){
+      const dx = lastTouchX - e.touches[0].clientX;
+      const dy = lastTouchY - e.touches[0].clientY;
+
+      wrap.scrollLeft += dx;
+      wrap.scrollTop += dy;
+
+      lastTouchX = e.touches[0].clientX;
+      lastTouchY = e.touches[0].clientY;
+    }
+  }, { passive:false });
+}
+
+// ---------------- CORE VARIABLES ----------------
 
 let pdfDoc = null;
 let currentPage = 1;
-let baseWidth = 800;       // used for zoom / resize
+let baseWidth = 800;
 let isRendering = false;
 
 let fabricCanvas = new fabric.Canvas("pdf-canvas");
-fabricCanvas.allowTouchScrolling = true; // helps scrolling on mobile
-
 let ctx = document.getElementById("pdf-canvas").getContext("2d");
 
 let deleteMode = false;
@@ -358,15 +338,15 @@ let cropMode = false;
 let cropRect = null;
 let selectedTextObj = null;
 
-// history state
 let history = [];
 let historyIndex = -1;
 let isRestoring = false;
 let isSettingUpPage = false;
 
-/* ======== HISTORY HELPERS ======== */
+/* ========== HISTORY ========== */
 function saveState() {
   if (isRestoring || isSettingUpPage || !fabricCanvas) return;
+
   const json = fabricCanvas.toJSON();
   history = history.slice(0, historyIndex + 1);
   history.push(json);
@@ -375,248 +355,79 @@ function saveState() {
 
 function restoreState(index) {
   if (index < 0 || index >= history.length) return;
+
   isRestoring = true;
   fabricCanvas.loadFromJSON(history[index], () => {
     fabricCanvas.renderAll();
     isRestoring = false;
   });
+
   historyIndex = index;
 }
 
-function undo(){
-  if (historyIndex > 0) {
-    restoreState(historyIndex - 1);
-  }
+function undo() {
+  if (historyIndex > 0) restoreState(historyIndex - 1);
 }
 
-function redo(){
-  if (historyIndex < history.length - 1) {
-    restoreState(historyIndex + 1);
-  }
+function redo() {
+  if (historyIndex < history.length - 1) restoreState(historyIndex + 1);
 }
 
-function resetPage(){
+function resetPage() {
   if (!pdfDoc) return;
   showPage(currentPage);
 }
 
-/* Track object changes for history */
+/* Track object changes */
 ["object:added","object:modified","object:removed"].forEach(ev => {
-  fabricCanvas.on(ev, () => {
-    saveState();
-  });
+  fabricCanvas.on(ev, () => saveState());
 });
 
-/* Keep objects inside the page */
-fabricCanvas.on('object:moving', function(e){
-  const obj = e.target;
-  obj.setCoords();
-
-  if (obj.left < 0) obj.left = 0;
-  if (obj.top < 0) obj.top = 0;
-
-  if (obj.left + obj.width * obj.scaleX > fabricCanvas.width){
-    obj.left = fabricCanvas.width - obj.width * obj.scaleX;
-  }
-  if (obj.top + obj.height * obj.scaleY > fabricCanvas.height){
-    obj.top = fabricCanvas.height - obj.height * obj.scaleY;
-  }
-});
-
-/* text:changed → remove original background box */
-fabricCanvas.on("text:changed", function(e) {
-  const obj = e.target;
-  if (obj.originalBg) {
-    fabricCanvas.remove(obj.originalBg);
-    obj.originalBg = null;
-  }
-});
-
-/* Track selected text for paragraph editor */
-fabricCanvas.on("selection:created", function(e){
-  const obj = e.selected[0];
-  if(obj && (obj.type === "i-text" || obj.type === "textbox")){
-    selectedTextObj = obj;
-  }
-});
-fabricCanvas.on("selection:updated", function(e){
-  const obj = e.selected[0];
-  if(obj && (obj.type === "i-text" || obj.type === "textbox")){
-    selectedTextObj = obj;
-  }
-});
-
-/* LOAD PDF + Upload to server */
-async function OLD_loadPDF(){
-
-  const fileInput = document.getElementById("pdfUpload");
-  const file = fileInput.files[0];
-
-  if(!file) {
-    alert("Select a PDF");
-    return;
-  }
-
-  const status = document.getElementById("status");
-
-  // ========== 1. SHOW ON CANVAS (your existing behavior) ==========
-  status.innerText = "Loading locally...";
-
-  const reader = new FileReader();
-
-  reader.onload = async function(e){
-    const bytes = new Uint8Array(e.target.result);
-    pdfDoc = await pdfjsLib.getDocument({data: bytes}).promise;
-
-    currentPage = 1;
-    document.getElementById("pageCount").innerText = pdfDoc.numPages;
-
-    await showPage(currentPage);
-    generateThumbs();
-
-    status.innerText = "PDF Loaded on canvas ✅";
-  };
-
-  reader.readAsArrayBuffer(file);
-
-
-  // ========== 2. UPLOAD TO SERVER (NEW PART) ==========
-  const formData = new FormData();
-  formData.append("file", file);
-
-  status.innerText = "Uploading to server...";
-
-  const response = await fetch("/ai/upload-pdf", {
-    method: "POST",
-    body: formData
-  });
-
-  const result = await response.json();
-
-  if(result.success){
-    status.innerText = "✅ PDF ready for editing";
-    
-    // Store server file path for later processing
-    window.serverPDF = result.filename;
-
-  } else {
-    status.innerText = "❌ Upload failed";
-  }
-
-}
-
-/* SHOW PAGE – with font matching + background */
-async function showPage(n){
+/* ========== PAGE VIEW ========== */
+async function showPage(n) {
 
   if (!pdfDoc || isRendering) return;
+
   isRendering = true;
   isSettingUpPage = true;
   currentPage = n;
-  document.getElementById("pageNum").innerText = n;
 
   try {
-    const page = await pdfDoc.getPage(n);
 
+    const page = await pdfDoc.getPage(n);
     const unscaled = page.getViewport({ scale: 1 });
     const scale = baseWidth / unscaled.width;
     const viewport = page.getViewport({ scale });
 
-    const canvas = document.getElementById("pdf-canvas");
     canvas.width = viewport.width;
     canvas.height = viewport.height;
 
     fabricCanvas.setWidth(viewport.width);
     fabricCanvas.setHeight(viewport.height);
 
-    // Reset crop when switching pages
-    fabricCanvas.clipPath = null;
-    cropRect = null;
-
-    // Draw PDF into canvas
     await page.render({
       canvasContext: ctx,
       viewport: viewport
     }).promise;
 
-    // Convert PDF → image for background
-    const bgImage = canvas.toDataURL("image/png");
+    const bg = canvas.toDataURL("image/png");
 
-    // Clear fabric objects but keep rendered bitmap as bg of fabric
     fabricCanvas.clear();
 
     await new Promise(resolve => {
-      fabric.Image.fromURL(bgImage, function(img){
+      fabric.Image.fromURL(bg, img => {
         img.selectable = false;
         img.evented = false;
-
         img.scaleToWidth(fabricCanvas.width);
         img.scaleToHeight(fabricCanvas.height);
-
         fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas));
         resolve();
       });
     });
 
-    // Extract text + styles for font matching
-    const textContent = await page.getTextContent();
-    const styles = textContent.styles || {};
+    document.getElementById("pageNum").innerText = n;
+    document.getElementById("status").innerText = `Page ${n} loaded ✅`;
 
-    textContent.items.forEach(t => {
-      if(!t.str.trim()) return;
-
-      const tx = pdfjsLib.Util.transform(viewport.transform, t.transform);
-      const x = tx[4];
-      const y = tx[5] - (t.height * scale);
-
-      const style = styles[t.fontName] || {};
-      let fontFamily = "Times New Roman";
-      if(style.fontFamily){
-        fontFamily = String(style.fontFamily).split(",")[0].replace(/["']/g,"");
-      }
-
-      // white box to cover original printed text
-      const eraseBox = new fabric.Rect({
-        left: x,
-        top: y,
-        width: (t.width || t.str.length * t.height) * scale + 2,
-        height: t.height * scale + 3,
-        fill: "#ffffff",
-        selectable: false,
-        evented: false
-      });
-
-      const txt = new fabric.Textbox(t.str,{
-        left: x,
-        top: y,
-        fontSize: t.height * scale,
-        fill:"#000",
-        fontFamily: fontFamily,
-        width: ((t.width || 80) * scale) + 40,
-        backgroundColor:"transparent",
-        editable: true,
-        lockScalingFlip: true,
-        splitByGrapheme: true
-    });
-	
-	   fabricCanvas.on('mouse:dblclick', function(opt){
-       if(opt.target && (opt.target.type === "textbox" || opt.target.type === "i-text")){
-       opt.target.enterEditing();
-       opt.target.selectAll();
-       }
-    });
-
-
-
-      txt.originalBg = eraseBox;
-
-      fabricCanvas.add(eraseBox);
-      fabricCanvas.add(txt);
-    });
-
-    fabricCanvas.renderAll();
-    document.getElementById("status").innerText = "Page " + n + " loaded ✅";
-
-    // reset history for this page & save initial
     history = [];
     historyIndex = -1;
     isSettingUpPage = false;
@@ -625,30 +436,28 @@ async function showPage(n){
   } catch (err) {
     console.error(err);
     document.getElementById("status").innerText = "❌ Error loading page";
-    isSettingUpPage = false;
   }
 
   isRendering = false;
 }
 
-/* PAGE NAVIGATION */
+/* ========== PAGE SWITCH ========== */
 function prevPage(){
-  if (!pdfDoc) return;
-  if (currentPage <= 1) return;
+  if (!pdfDoc || currentPage <= 1) return;
   showPage(currentPage - 1);
 }
+
 function nextPage(){
-  if (!pdfDoc) return;
-  if (currentPage >= pdfDoc.numPages) return;
+  if (!pdfDoc || currentPage >= pdfDoc.numPages) return;
   showPage(currentPage + 1);
 }
 
-/* THUMBNAILS */
+/* ========== THUMBNAILS ========== */
 async function generateThumbs(){
   const thumbs = document.getElementById("thumbs");
   thumbs.innerHTML = "";
 
-  for(let i=1;i<=pdfDoc.numPages;i++){
+  for(let i = 1; i <= pdfDoc.numPages; i++){
     const page = await pdfDoc.getPage(i);
     const view = page.getViewport({ scale: 0.25 });
 
@@ -661,371 +470,24 @@ async function generateThumbs(){
     const img = document.createElement("img");
     img.src = c.toDataURL();
     img.className = "border rounded cursor-pointer mb-2 w-full";
-
     img.onclick = () => showPage(i);
+
     thumbs.appendChild(img);
   }
 }
 
-/* ZOOM / RESIZE */
+/* ========== ZOOM ========== */
 function zoomIn(){
   baseWidth *= 1.1;
   if(pdfDoc) showPage(currentPage);
 }
+
 function zoomOut(){
   baseWidth /= 1.1;
   if(pdfDoc) showPage(currentPage);
 }
 
-/* CROP USING CLIP PATH */
-function toggleCropMode(){
-  if(!pdfDoc) return;
-
-  if(cropMode){
-    cropMode = false;
-    fabricCanvas.clipPath = null;
-    cropRect = null;
-    fabricCanvas.renderAll();
-    document.getElementById("status").innerText = "Crop disabled";
-    return;
-  }
-
-  cropMode = true;
-
-  // create central crop rect
-  cropRect = new fabric.Rect({
-    left: fabricCanvas.width * 0.1,
-    top: fabricCanvas.height * 0.1,
-    width: fabricCanvas.width * 0.8,
-    height: fabricCanvas.height * 0.8,
-    fill: "rgba(0,0,0,0.0)",
-    stroke: "#10b981",
-    strokeWidth: 2,
-    hasBorders: true,
-    hasControls: true,
-    selectable: true
-  });
-
-  cropRect.absolutePositioned = true;
-  fabricCanvas.add(cropRect);
-
-  fabricCanvas.clipPath = cropRect;
-  fabricCanvas.renderAll();
-  document.getElementById("status").innerText = "Crop mode: drag green box to set area";
-}
-
-/* AI REWRITE (local backend) */
-function openRewriteBox(){
-  document.getElementById("rewriteBox").classList.remove("hidden");
-}
-function rewriteText(){
-  const txt = document.getElementById("rewriteInput").value;
-  if(!txt.trim()) return alert("Enter text");
-
-  fetch("/ai/rewrite",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({ text: txt })
-  }).then(r=>r.json())
-   .then(data=>{
-      const t = new fabric.Textbox(data.result || "",{
-        left:100,
-        top:100,
-        fontSize:18,
-        width:300
-      });
-      fabricCanvas.add(t);
-    });
-}
-
-/* FIND & REPLACE */
-function openFindReplace(){
-  document.getElementById("findReplaceBox").classList.remove("hidden");
-}
-function replaceTextAll(){
-
-  const fileInput = document.getElementById("pdfUpload");
-  const find = document.getElementById("findText").value;
-  const replace = document.getElementById("replaceText").value;
-
-  if(!fileInput.files.length){
-    alert("Upload a PDF first");
-    return;
-  }
-
-  if(!find){
-    alert("Enter text to replace");
-    return;
-  }
-
-  const formData = new FormData();
-  formData.append("file", fileInput.files[0]);
-  formData.append("find", find);
-  formData.append("replace", replace);
-
-  fetch("/ai/real-replace", {
-    method: "POST",
-    body: formData
-  })
-  .then(res => res.blob())
-  .then(blob => {
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "BlinkPDF_REAL_EDIT.pdf";
-    a.click();
-  })
-  .catch(err => {
-    alert("Error doing real replace");
-    console.error(err);
-  });
-
-}
-
-/* DELETE TEXT MODE */
-function enableDeleteMode(){
-  deleteMode = true;
-  alert("Click on a text block to delete it");
-}
-fabricCanvas.on("mouse:down", function(opt){
-  if(deleteMode && opt.target){
-    fabricCanvas.remove(opt.target);
-    deleteMode = false;
-  }
-});
-
-/* STICKY COMMENT */
-function addStickyNote(){
-  const note = new fabric.Rect({
-    left:120,top:120,width:200,height:100,
-    fill:"#fff59d",rx:8,ry:8
-  });
-  const txt = new fabric.Textbox("Comment...",{
-    left:130,top:130,fontSize:14,width:180
-  });
-  fabricCanvas.add(note); fabricCanvas.add(txt);
-}
-
-/* PARAGRAPH EDITOR */
-function openParagraphEditor(){
-  if(!selectedTextObj){
-    alert("Select a text block first");
-    return;
-  }
-  document.getElementById("paraBox").classList.remove("hidden");
-  document.getElementById("paraInput").value = selectedTextObj.text || "";
-}
-function applyParagraphEdit(){
-  if(!selectedTextObj) return;
-  selectedTextObj.text = document.getElementById("paraInput").value;
-  fabricCanvas.renderAll();
-}
-
-/* SIGNATURE */
-let signCanvas = document.getElementById("signCanvas");
-let signCtx = signCanvas.getContext("2d");
-let drawingSign = false;
-
-function startSignature(){
-  document.getElementById("signBox").classList.remove("hidden");
-
-  signCanvas.onmousedown = () => { drawingSign = true; signCtx.beginPath(); };
-  signCanvas.onmouseup = () => { drawingSign = false; };
-  signCanvas.onmouseleave = () => { drawingSign = false; };
-  signCanvas.onmousemove = e => {
-    if(!drawingSign) return;
-    signCtx.lineWidth = 2;
-    signCtx.lineTo(e.offsetX,e.offsetY);
-    signCtx.stroke();
-  };
-
-  // touch support
-  signCanvas.ontouchstart = (e) => {
-    e.preventDefault();
-    drawingSign = true;
-    const rect = signCanvas.getBoundingClientRect();
-    const x = e.touches[0].clientX - rect.left;
-    const y = e.touches[0].clientY - rect.top;
-    signCtx.beginPath();
-    signCtx.moveTo(x,y);
-  };
-  signCanvas.ontouchend = () => { drawingSign = false; };
-  signCanvas.ontouchmove = (e) => {
-    e.preventDefault();
-    if(!drawingSign) return;
-    const rect = signCanvas.getBoundingClientRect();
-    const x = e.touches[0].clientX - rect.left;
-    const y = e.touches[0].clientY - rect.top;
-    signCtx.lineWidth = 2;
-    signCtx.lineTo(x,y);
-    signCtx.stroke();
-  };
-}
-
-function addSignatureToPDF(){
-  const data = signCanvas.toDataURL();
-  fabric.Image.fromURL(data, img=>{
-    img.set({ left:150, top:150, scaleX:0.5, scaleY:0.5 });
-    fabricCanvas.add(img);
-  });
-  signCtx.clearRect(0,0,signCanvas.width,signCanvas.height);
-  document.getElementById("signBox").classList.add("hidden");
-}
-
-/* OCR */
-async function runOCR(){
-  const img = document.getElementById("pdf-canvas").toDataURL("image/png");
-  const { data } = await Tesseract.recognize(img,"eng");
-  const t = new fabric.Textbox(data.text || "",{left:50,top:50,fontSize:14,width:400});
-  fabricCanvas.add(t);
-}
-
-/* SAVE FULL PDF (visual) – respects crop & zoom */
-async function saveFullPDF(){
-
-  if(!pdfDoc){
-    alert("No PDF loaded");
-    return;
-  }
-
-  const newPdf = await PDFLib.PDFDocument.create();
-
-  for(let i=1;i<=pdfDoc.numPages;i++){
-
-    await showPage(i);
-
-    const dataUrl = fabricCanvas.toDataURL({
-      format: "png",
-      multiplier: 2
-    });
-
-    const imageBytes = await fetch(dataUrl).then(res => res.arrayBuffer());
-    const pngImage = await newPdf.embedPng(imageBytes);
-
-    const page = newPdf.addPage([fabricCanvas.width, fabricCanvas.height]);
-
-    page.drawImage(pngImage,{
-      x:0,
-      y:0,
-      width: page.getWidth(),
-      height: page.getHeight()
-    });
-  }
-
-  const pdfBytes = await newPdf.save();
-  const blob = new Blob([pdfBytes], { type: "application/pdf" });
-
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "BlinkPDF_PERFECT.pdf";
-  a.click();
-}
-
-
-
-// Mobile canvas drag support
-const scrollBox = document.querySelector(".touch-pan");
-let isDown = false;
-let startX, startY, scrollLeft, scrollTop;
-
-if(scrollBox){
-  scrollBox.addEventListener("touchstart", e => {
-    isDown = true;
-    const touch = e.touches[0];
-    startX = touch.pageX - scrollBox.offsetLeft;
-    startY = touch.pageY - scrollBox.offsetTop;
-    scrollLeft = scrollBox.scrollLeft;
-    scrollTop = scrollBox.scrollTop;
-  });
-
-  scrollBox.addEventListener("touchend", () => isDown = false);
-
-  scrollBox.addEventListener("touchmove", e => {
-    if(!isDown) return;
-    const touch = e.touches[0];
-    const x = touch.pageX - scrollBox.offsetLeft;
-    const y = touch.pageY - scrollBox.offsetTop;
-    const walkX = (x - startX) * 1.5;
-    const walkY = (y - startY) * 1.5;
-    scrollBox.scrollLeft = scrollLeft - walkX;
-    scrollBox.scrollTop = scrollTop - walkY;
-  });
-}
-
-/* ================= MOBILE TOUCH + ZOOM SUPPORT ================= */
-
-let lastX = 0;
-let lastY = 0;
-let isPanning = false;
-let pinchStartDist = 0;
-let lastZoom = 1;
-
-/* distance between two fingers */
-function getDistance(touches){
-  const dx = touches[0].clientX - touches[1].clientX;
-  const dy = touches[0].clientY - touches[1].clientY;
-  return Math.sqrt(dx * dx + dy * dy);
-}
-
-const pdfCanvas = document.getElementById("pdf-canvas");
-
-/* TOUCH START */
-pdfCanvas.addEventListener("touchstart", function(e){
-  if (e.touches.length === 1) {
-    // PAN start
-    isPanning = true;
-    lastX = e.touches[0].clientX;
-    lastY = e.touches[0].clientY;
-  }
-
-  if (e.touches.length === 2) {
-    // PINCH zoom start
-    pinchStartDist = getDistance(e.touches);
-    lastZoom = fabricCanvas.getZoom();
-  }
-
-}, { passive: false });
-
-/* TOUCH MOVE */
-pdfCanvas.addEventListener("touchmove", function(e){
-  e.preventDefault(); // stops page scroll only when touching canvas
-
-  // 1 finger = PAN
-  if (e.touches.length === 1 && isPanning) {
-    const touch = e.touches[0];
-    const dx = touch.clientX - lastX;
-    const dy = touch.clientY - lastY;
-
-    fabricCanvas.relativePan(new fabric.Point(dx, dy));
-
-    lastX = touch.clientX;
-    lastY = touch.clientY;
-  }
-
-  // 2 finger = PINCH ZOOM
-  if (e.touches.length === 2) {
-    const dist = getDistance(e.touches);
-    const zoom = lastZoom * (dist / pinchStartDist);
-
-    fabricCanvas.zoomToPoint(
-      new fabric.Point(
-        (e.touches[0].clientX + e.touches[1].clientX) / 2,
-        (e.touches[0].clientY + e.touches[1].clientY) / 2
-      ),
-      zoom
-    );
-  }
-
-}, { passive: false });
-
-/* TOUCH END */
-pdfCanvas.addEventListener("touchend", function(){
-  isPanning = false;
-  pinchStartDist = 0;
-});
-
-/* ================= END MOBILE PATCH ================= */
-
+/* ========== UPLOAD BUTTON FIX (FINAL) ========== */
 document.addEventListener("DOMContentLoaded", function(){
 
   const uploadBtn = document.getElementById("uploadBtn");
@@ -1033,75 +495,61 @@ document.addEventListener("DOMContentLoaded", function(){
   const status = document.getElementById("status");
 
   if(!uploadBtn){
-    console.error("❌ uploadBtn not found");
+    console.error("uploadBtn not found!");
     return;
   }
 
-  uploadBtn.addEventListener("click", async function(){
-
-    console.log("✅ Upload button clicked");
+  uploadBtn.onclick = async function(){
 
     const file = fileInput.files[0];
 
     if(!file){
-      alert("Please select a PDF");
+      alert("Select a PDF first");
       return;
     }
 
-    // Load on canvas
-    try {
-      status.innerText = "Loading PDF on canvas...";
+    console.log("✅ Upload button clicked");
+    status.innerText = "Loading on canvas...";
 
-      const reader = new FileReader();
-      reader.onload = async function(e){
-        const bytes = new Uint8Array(e.target.result);
+    const reader = new FileReader();
 
-        pdfDoc = await pdfjsLib.getDocument({data: bytes}).promise;
-        currentPage = 1;
+    reader.onload = async function(e){
+      const bytes = new Uint8Array(e.target.result);
+      pdfDoc = await pdfjsLib.getDocument({data: bytes}).promise;
 
-        document.getElementById("pageCount").innerText = pdfDoc.numPages;
-        await showPage(currentPage);
-        generateThumbs();
+      document.getElementById("pageCount").innerText = pdfDoc.numPages;
+      currentPage = 1;
 
-        status.innerText = "✅ PDF loaded on canvas";
-      };
+      await showPage(1);
+      generateThumbs();
 
-      reader.readAsArrayBuffer(file);
+      status.innerText = "✅ PDF loaded on canvas";
+    };
 
-    } catch(err){
-      console.error("Canvas load error:", err);
+    reader.readAsArrayBuffer(file);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch("/ai/upload-pdf", {
+      method: "POST",
+      body: formData
+    });
+
+    const result = await res.json();
+
+    if(result.success){
+      window.serverPDF = result.filename;
+      status.innerText = "✅ Ready for editing";
+    } else {
+      status.innerText = "❌ Upload failed";
     }
 
-    // Upload to server
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      status.innerText = "Uploading to server...";
-
-      const response = await fetch("/ai/upload-pdf", {
-        method: "POST",
-        body: formData
-      });
-
-      const result = await response.json();
-
-      if(result.success){
-        window.serverPDF = result.filename;
-        status.innerText = "✅ Ready for editing";
-      } else {
-        status.innerText = "❌ Upload failed";
-      }
-
-    } catch(err){
-      console.error("Server error:", err);
-      status.innerText = "❌ Server error";
-    }
-
-  });
+  };
 
 });
 
 </script>
+
 
 {% endblock %}
