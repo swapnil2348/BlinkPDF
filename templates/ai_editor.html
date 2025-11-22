@@ -33,16 +33,15 @@
 <div class="bg-white p-6 rounded-xl shadow border mb-6">
 
   <form
-    action="/ai/real-replace"
-    method="POST"
+    id="uploadForm"
     enctype="multipart/form-data"
     class="flex flex-col sm:flex-row gap-4"
-    onsubmit="showStatus()"
   >
 
     <input
       type="file"
       name="file"
+      id="pdfUpload"
       accept="application/pdf"
       required
       class="border p-2 rounded flex-1"
@@ -59,13 +58,6 @@
 
   <p id="status" class="text-sm mt-3 text-violet-600 font-semibold"></p>
 </div>
-
-<script>
-function showStatus() {
-  document.getElementById("status").innerText =
-    "⏳ Uploading & processing your file... Please wait";
-}
-</script>
 
     <!-- Thumbnails -->
     <div class="col-span-12 md:col-span-2 bg-white border rounded-xl p-3 overflow-y-auto max-h-[600px]" id="thumbs">
@@ -456,22 +448,63 @@ fabricCanvas.on("selection:updated", function(e){
   }
 });
 
-/* LOAD PDF */
+/* LOAD PDF + Upload to server */
 async function loadPDF(){
-  const file = document.getElementById("pdfUpload").files[0];
-  if(!file) return alert("Select a PDF");
+
+  const fileInput = document.getElementById("pdfUpload");
+  const file = fileInput.files[0];
+
+  if(!file) {
+    alert("Select a PDF");
+    return;
+  }
+
+  const status = document.getElementById("status");
+
+  // ========== 1. SHOW ON CANVAS (your existing behavior) ==========
+  status.innerText = "Loading locally...";
 
   const reader = new FileReader();
+
   reader.onload = async function(e){
     const bytes = new Uint8Array(e.target.result);
     pdfDoc = await pdfjsLib.getDocument({data: bytes}).promise;
-    document.getElementById("status").innerText = "PDF Loaded ✅";
+
     currentPage = 1;
     document.getElementById("pageCount").innerText = pdfDoc.numPages;
+
     await showPage(currentPage);
     generateThumbs();
+
+    status.innerText = "PDF Loaded on canvas ✅";
   };
+
   reader.readAsArrayBuffer(file);
+
+
+  // ========== 2. UPLOAD TO SERVER (NEW PART) ==========
+  const formData = new FormData();
+  formData.append("file", file);
+
+  status.innerText = "Uploading to server...";
+
+  const response = await fetch("/ai/upload-pdf", {
+    method: "POST",
+    body: formData
+  });
+
+  const result = await response.json();
+
+  if(result.success){
+    status.innerText = "✅ PDF ready for editing";
+    
+    // Store server file path for later processing
+    window.serverPDF = result.filename;
+
+  } else {
+    status.innerText = "❌ Upload failed";
+  }
+
 }
 
 /* SHOW PAGE – with font matching + background */
@@ -997,6 +1030,41 @@ pdfCanvas.addEventListener("touchend", function(){
 
   document.querySelector("form").addEventListener("submit", function(){
   document.getElementById("status").innerText = "⏳ Processing your PDF...";
+});
+
+document.getElementById("uploadForm").addEventListener("submit", async function(e){
+    e.preventDefault();
+
+    const fileInput = document.getElementById("pdfUpload");
+    const status = document.getElementById("status");
+
+    if(!fileInput.files.length){
+        status.innerText = "Please select a file";
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+
+    status.innerText = "⏳ Uploading file...";
+
+    const response = await fetch("/ai/upload-pdf", {
+        method: "POST",
+        body: formData
+    });
+
+    const result = await response.json();
+
+    if(result.success){
+        status.innerText = "✅ File loaded. Ready to edit.";
+
+        // LOAD PDF INTO YOUR CANVAS
+        loadPDF(result.url);
+
+    } else {
+        status.innerText = "❌ Upload failed";
+    }
+
 });
 </script>
 

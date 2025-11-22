@@ -369,22 +369,22 @@ def ai_table_extract():
 @app.route("/ai/real-replace", methods=["POST"])
 def ai_real_replace():
 
-    file = request.files.get("file")
+    filename = request.form.get("filename")
 
-    if not file:
-        return jsonify({"error": "No file uploaded"}), 400
+    if not filename:
+        return jsonify({"error": "Missing filename"}), 400
 
-    source_name = f"{uuid.uuid4().hex}_source.pdf"
+    source_path = os.path.join(UPLOAD_FOLDER, filename)
+
+    if not os.path.exists(source_path):
+        return jsonify({"error": "File not found on server"}), 404
+
     final_name = f"{uuid.uuid4().hex}_final.pdf"
-
-    source_path = os.path.join(UPLOAD_FOLDER, source_name)
     output_path = os.path.join(PROCESSED_FOLDER, final_name)
 
-    file.save(source_path)
-
     # DEFAULT behavior since no user text input now
-    find_text = "OLD TEXT"          # <- you can change this
-    replace_text = "NEW TEXT"        # <- you can change this
+    find_text = "OLD TEXT"     # change later if needed
+    replace_text = "NEW TEXT"
 
     # 1. REAL delete inside PDF
     redacted_file = pdf.redact_pdf(source_path, PROCESSED_FOLDER, {
@@ -400,6 +400,30 @@ def ai_real_replace():
     })
 
     return send_file(replaced_file, as_attachment=True)
+    
+@app.route("/ai/upload-pdf", methods=["POST"])
+def ai_upload_pdf():
+
+    file = request.files.get("file")
+
+    if not file:
+        return {"success": False}, 400
+
+    filename = f"{uuid.uuid4().hex}.pdf"
+    save_path = os.path.join(UPLOAD_FOLDER, filename)
+
+    file.save(save_path)
+
+    return {
+        "success": True,
+        "filename": filename
+    }
+
+@app.route('/uploads/<path:filename>')
+def serve_uploads(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename)
+   
+
 # --------------------------------------------------------------------
 @app.route("/health")
 def health():
