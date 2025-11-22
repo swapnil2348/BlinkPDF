@@ -179,7 +179,10 @@ def inject_globals():
 @app.route("/")
 def index():
     return render_template("index.html")
-
+    
+@app.route("/ai-tools")
+def ai_tools_page():
+    return render_template("ai_tools.html")
 
 # ✅ FIXED Google Verification Route (ONLY CORRECTION MADE HERE)
 @app.route('/googlefe495bc7600f4865.html')
