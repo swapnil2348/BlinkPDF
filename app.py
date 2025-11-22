@@ -366,15 +366,13 @@ def ai_table_extract():
     tables = ask_ai(f"Extract tables as CSV:\n{text[:6000]}")
     return jsonify({"tables": tables})
 
-
 @app.route("/ai/real-replace", methods=["POST"])
 def ai_real_replace():
-    file = request.files.get("file")
-    find_text = request.form.get("find")
-    replace_text = request.form.get("replace")
 
-    if not file or not find_text or not replace_text:
-        return jsonify({"error": "Missing file or replace data"}), 400
+    file = request.files.get("file")
+
+    if not file:
+        return jsonify({"error": "No file uploaded"}), 400
 
     source_name = f"{uuid.uuid4().hex}_source.pdf"
     final_name = f"{uuid.uuid4().hex}_final.pdf"
@@ -384,7 +382,11 @@ def ai_real_replace():
 
     file.save(source_path)
 
-    # 1. REAL delete inside PDF (not overlay)
+    # DEFAULT behavior since no user text input now
+    find_text = "OLD TEXT"          # <- you can change this
+    replace_text = "NEW TEXT"        # <- you can change this
+
+    # 1. REAL delete inside PDF
     redacted_file = pdf.redact_pdf(source_path, PROCESSED_FOLDER, {
         "text": find_text
     })
@@ -398,8 +400,6 @@ def ai_real_replace():
     })
 
     return send_file(replaced_file, as_attachment=True)
-
-
 # --------------------------------------------------------------------
 @app.route("/health")
 def health():

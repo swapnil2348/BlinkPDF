@@ -32,54 +32,40 @@
   <!-- Upload -->
 <div class="bg-white p-6 rounded-xl shadow border mb-6">
 
-  <form 
-    action="/ai/real-replace" 
-    method="POST" 
+  <form
+    action="/ai/real-replace"
+    method="POST"
     enctype="multipart/form-data"
-    class="flex flex-col gap-4"
+    class="flex flex-col sm:flex-row gap-4"
+    onsubmit="showStatus()"
   >
 
-    <input 
-      type="file" 
+    <input
+      type="file"
       name="file"
       accept="application/pdf"
       required
-      class="border p-2 rounded"
-    >
-
-    <input
-      type="text"
-      name="find"
-      placeholder="Text to find"
-      required
-      class="border p-2 rounded"
-    >
-
-    <input
-      type="text"
-      name="replace"
-      placeholder="Text to replace with"
-      required
-      class="border p-2 rounded"
+      class="border p-2 rounded flex-1"
     >
 
     <button
       type="submit"
-      class="bg-violet-600 text-white px-6 py-2 rounded hover:bg-violet-700"
+      class="bg-violet-600 text-white px-6 py-2 rounded hover:bg-violet-700 w-full sm:w-auto"
     >
-      Upload & Start AI Replace
+      Upload & Start
     </button>
 
   </form>
 
-  <p id="status" class="text-sm mt-2 text-gray-600"></p>
-
+  <p id="status" class="text-sm mt-3 text-violet-600 font-semibold"></p>
 </div>
 
-
-  <p id="status" class="text-sm mt-2 text-gray-600"></p>
-</div>
-
+<script>
+function showStatus() {
+  document.getElementById("status").innerText =
+    "⏳ Uploading & processing your file... Please wait";
+}
+</script>
 
     <!-- Thumbnails -->
     <div class="col-span-12 md:col-span-2 bg-white border rounded-xl p-3 overflow-y-auto max-h-[600px]" id="thumbs">
@@ -1009,7 +995,9 @@ pdfCanvas.addEventListener("touchend", function(){
 
 /* ================= END MOBILE PATCH ================= */
 
-
+  document.querySelector("form").addEventListener("submit", function(){
+  document.getElementById("status").innerText = "⏳ Processing your PDF...";
+});
 </script>
 
 {% endblock %}
