@@ -1027,67 +1027,81 @@ pdfCanvas.addEventListener("touchend", function(){
 /* ================= END MOBILE PATCH ================= */
 
 document.addEventListener("DOMContentLoaded", function(){
-  alert("AI Editor JS loaded");
 
   const uploadBtn = document.getElementById("uploadBtn");
   const fileInput = document.getElementById("pdfUpload");
   const status = document.getElementById("status");
 
+  if(!uploadBtn){
+    console.error("❌ uploadBtn not found");
+    return;
+  }
+
   uploadBtn.addEventListener("click", async function(){
+
+    console.log("✅ Upload button clicked");
 
     const file = fileInput.files[0];
 
-    if (!file) {
-      alert("Please select a PDF first");
+    if(!file){
+      alert("Please select a PDF");
       return;
     }
 
-    console.log("✅ Button working");
+    // Load on canvas
+    try {
+      status.innerText = "Loading PDF on canvas...";
 
-    /* 1. Show PDF on canvas */
-    status.innerText = "Loading PDF on canvas...";
+      const reader = new FileReader();
+      reader.onload = async function(e){
+        const bytes = new Uint8Array(e.target.result);
 
-    const reader = new FileReader();
-    reader.onload = async function(e){
-      const bytes = new Uint8Array(e.target.result);
+        pdfDoc = await pdfjsLib.getDocument({data: bytes}).promise;
+        currentPage = 1;
 
-      pdfDoc = await pdfjsLib.getDocument({data: bytes}).promise;
-      currentPage = 1;
+        document.getElementById("pageCount").innerText = pdfDoc.numPages;
+        await showPage(currentPage);
+        generateThumbs();
 
-      document.getElementById("pageCount").innerText = pdfDoc.numPages;
+        status.innerText = "✅ PDF loaded on canvas";
+      };
 
-      await showPage(currentPage);
-      generateThumbs();
+      reader.readAsArrayBuffer(file);
 
-      status.innerText = "✅ PDF loaded on canvas";
-    };
+    } catch(err){
+      console.error("Canvas load error:", err);
+    }
 
-    reader.readAsArrayBuffer(file);
+    // Upload to server
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
 
+      status.innerText = "Uploading to server...";
 
-    /* 2. Upload to server */
-    const formData = new FormData();
-    formData.append("file", file);
+      const response = await fetch("/ai/upload-pdf", {
+        method: "POST",
+        body: formData
+      });
 
-    status.innerText = "Uploading to server...";
+      const result = await response.json();
 
-    const response = await fetch("/ai/upload-pdf", {
-      method: "POST",
-      body: formData
-    });
+      if(result.success){
+        window.serverPDF = result.filename;
+        status.innerText = "✅ Ready for editing";
+      } else {
+        status.innerText = "❌ Upload failed";
+      }
 
-    const result = await response.json();
-
-    if(result.success){
-      window.serverPDF = result.filename;
-      status.innerText = "✅ Ready for editing";
-    } else {
-      status.innerText = "❌ Upload failed";
+    } catch(err){
+      console.error("Server error:", err);
+      status.innerText = "❌ Server error";
     }
 
   });
 
 });
+
 </script>
 
 {% endblock %}
