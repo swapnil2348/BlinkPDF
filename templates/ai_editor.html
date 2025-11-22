@@ -429,22 +429,89 @@ async function showPage(n) {
     const textContent = await page.getTextContent();
     const styles = textContent.styles || {};
 
+// ========== GROUP TEXT INTO LINES ==========
+let lines = {};
+const tolerance = 5;
+
 textContent.items.forEach(t => {
+  if (!t.str.trim()) return;
 
-  if(!t.str.trim()) return;
+  const tx = pdfjsLib.Util.transform(viewport.transform, t.transform);
+  const x = tx[4];
+  const y = Math.round(tx[5] / 5) * 5;  // normalize line height
 
-    const tx = pdfjsLib.Util.transform(viewport.transform, t.transform);
-    const x = tx[4];
-    const y = tx[5] - (t.height * scale);
+  if (!lines[y]) lines[y] = [];
 
-    const style = styles[t.fontName] || {};
-    let fontFamily = "Times New Roman";
+  lines[y].push({
+    text: t.str,
+    x: x,
+    width: t.width,
+    height: t.height,
+    font: t.fontName
+  });
+});
+
+Object.keys(lines).forEach(yKey => {
+  const items = lines[yKey].sort((a,b) => a.x - b.x);
+
+  let fullText = "";
+  let startX = items[0].x;
+  let totalWidth = 0;
+
+  items.forEach((item, i) => {
+    if(i > 0){
+      const gap = item.x - (items[i-1].x + (items[i-1].width * scale));
+      if (gap > tolerance) fullText += " ";
+    }
+    fullText += item.text;
+    totalWidth += (item.width * scale) + 3;
+  });
+
+  const fontName = items[0].font;
+  const style = textContent.styles[fontName] || {};
+  let fontFamily = "Times New Roman";
 
   if(style.fontFamily){
-    fontFamily = String(style.fontFamily)
-      .split(",")[0]
-      .replace(/["']/g,"");
+    fontFamily = String(style.fontFamily).split(",")[0].replace(/["']/g,"");
   }
+
+  // VIOLET background to cover original text
+  const eraseBox = new fabric.Rect({
+    left: startX,
+    top: yKey - (items[0].height * scale),
+    width: totalWidth + 8,
+    height: (items[0].height * scale) + 6,
+    fill: "#7c3aed",
+    opacity: 0.15,
+    selectable: false,
+    evented: false
+  });
+
+  const txt = new fabric.Textbox(fullText,{
+    left: startX,
+    top: yKey - (items[0].height * scale),
+    fontSize: items[0].height * scale,
+    fill:"#000",
+    fontFamily: fontFamily,
+    width: totalWidth + 100,
+    editable: true,
+    splitByGrapheme: false
+  });
+
+  txt.originalBg = eraseBox;
+
+  fabricCanvas.add(eraseBox);
+  fabricCanvas.add(txt);
+});
+
+// DOUBLE CLICK TO EDIT
+fabricCanvas.on("mouse:dblclick", function(opt){
+  if(opt.target && (opt.target.type === "textbox" || opt.target.type === "i-text")){
+    opt.target.enterEditing();
+    opt.target.selectAll();
+  }
+});
+
 
   // White erase box
   const eraseBox = new fabric.Rect({
