@@ -3,26 +3,29 @@
 {% block seo_desc %}Edit, sign, OCR and modify PDFs online for free{% endblock %}
 
 {% block content %}
-<style>
-  .tool-btn{
-    padding:6px 14px;
-    border-radius:6px;
-    background:#f3f4f6;
-    font-size:14px;
-    border:1px solid #e5e7eb;
-  }
-  .tool-btn:hover{ background:#e5e7eb; }
-  .tool-btn.active { background:#7c3aed; color:white; }
-  
-  /* MOBILE TOUCH FIX FOR PDF CANVAS */
-#pdf-canvas {
-  touch-action: none;          /* allow custom gestures */
-  -ms-touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-tap-highlight-color: transparent;
-}
 
+<style>
+  .tool-btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    background: #f3f4f6;
+    font-size: 14px;
+    border: 1px solid #e5e7eb;
+  }
+
+  .tool-btn:hover { background: #e5e7eb; }
+
+  .tool-btn.active {
+    background: #7c3aed;
+    color: white;
+  }
+
+  #pdf-canvas {
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
 </style>
 
 <section class="max-w-7xl mx-auto px-4 py-8">
@@ -30,31 +33,29 @@
   <h1 class="text-3xl font-bold mb-4">AI PDF Editor (PRO)</h1>
 
   <!-- Upload -->
-<div class="bg-white p-6 rounded-xl shadow border mb-6">
+  <div class="bg-white p-6 rounded-xl shadow border mb-6">
+    <form id="uploadForm" class="flex flex-col sm:flex-row gap-4">
+      <input
+        type="file"
+        id="pdfUpload"
+        accept="application/pdf"
+        required
+        class="border p-2 rounded flex-1"
+      >
 
-  <form id="uploadForm" class="flex flex-col sm:flex-row gap-4">
+      <button
+        type="button"
+        id="uploadBtn"
+        class="bg-violet-600 text-white px-6 py-2 rounded hover:bg-violet-700 w-full sm:w-auto"
+      >
+        Upload & Start
+      </button>
+    </form>
 
-    <input
-      type="file"
-      id="pdfUpload"
-      accept="application/pdf"
-      required
-      class="border p-2 rounded flex-1"
-    >
+    <p id="status" class="text-sm mt-3 text-violet-600 font-semibold"></p>
+  </div>
 
-    <button
-      type="button"
-      id="uploadBtn"
-      class="bg-violet-600 text-white px-6 py-2 rounded hover:bg-violet-700 w-full sm:w-auto"
-    >
-      Upload & Start
-    </button>
-
-  </form>
-
-  <p id="status" class="text-sm mt-3 text-violet-600 font-semibold"></p>
-
-</div>
+  <div class="grid grid-cols-12 gap-4">
 
     <!-- Thumbnails -->
     <div class="col-span-12 md:col-span-2 bg-white border rounded-xl p-3 overflow-y-auto max-h-[600px]" id="thumbs">
@@ -64,521 +65,232 @@
     <!-- Main editor -->
     <div class="col-span-12 md:col-span-10 space-y-3">
 
-      <!-- Toolbar -->
       <div class="bg-white p-3 rounded-xl shadow border flex gap-2 flex-wrap items-center">
 
-        <!-- Core tools -->
-        <button class="tool-btn" onclick="openRewriteBox()">✨ Rewrite</button>
+        <button class="tool-btn" onclick="rewriteSelectedText()">🤖 AI Rewrite</button>
         <button class="tool-btn" onclick="openFindReplace()">🔁 Find & Replace</button>
         <button class="tool-btn" onclick="enableDeleteMode()">❌ Delete text</button>
         <button class="tool-btn" onclick="addStickyNote()">💬 Comment</button>
-        <button class="tool-btn" onclick="openParagraphEditor()">¶ Paragraph editor</button>
-        <button class="tool-btn" onclick="startSignature()">✍ Draw Sign</button>
+        <button class="tool-btn" onclick="openParagraphEditor()">¶ Paragraph</button>
+        <button class="tool-btn" onclick="startSignature()">✍ Sign</button>
         <button class="tool-btn" onclick="runOCR()">🔎 OCR</button>
 
-        <!-- Zoom / crop -->
         <button class="tool-btn" onclick="zoomOut()">🔍 -</button>
         <button class="tool-btn" onclick="zoomIn()">🔎 +</button>
         <button class="tool-btn" onclick="toggleCropMode()">✂ Crop</button>
 
-        <!-- NEW: History tools -->
         <button class="tool-btn" onclick="undo()">↩ Undo</button>
         <button class="tool-btn" onclick="redo()">↪ Redo</button>
-        <button class="tool-btn" onclick="resetPage()">🧼 Reset Page</button>
 
-        <!-- Save -->
-        <button class="bg-violet-600 text-white px-4 py-2 rounded ml-auto hover:bg-violet-700" onclick="saveFullPDF()"> 💾 Save FULL PDF </button>
+        <button
+          class="tool-btn ml-auto"
+          style="background:#7c3aed;color:white;"
+          onclick="saveFullPDF()"
+        >
+          💾 Save FULL PDF
+        </button>
       </div>
 
-      <!-- Page navigation -->
       <div class="flex items-center justify-between bg-white p-3 rounded-xl shadow border text-sm">
-        <div class="flex items-center gap-2">
+        <div>
           <button class="tool-btn" onclick="prevPage()">⬅ Prev</button>
           <button class="tool-btn" onclick="nextPage()">Next ➡</button>
         </div>
-        <div class="text-xs sm:text-sm text-gray-600">
+        <div>
           Page <span id="pageNum">-</span> / <span id="pageCount">-</span>
         </div>
       </div>
 
-      <!-- AI Rewrite -->
-      <div id="rewriteBox" class="hidden bg-white p-3 border rounded mb-3">
-        <textarea id="rewriteInput" class="border w-full rounded p-2" rows="3"
-          placeholder="Enter text to rewrite..."></textarea>
-        <button onclick="rewriteText()"
-          class="bg-violet-600 text-white p-2 mt-2 rounded w-full">
-          Rewrite & Add
-        </button>
-      </div>
-
-      <!-- Find & Replace -->
-      <div id="findReplaceBox" class="hidden bg-white p-3 border rounded mb-3">
-        <input id="findText" class="border p-2 w-full mb-2" placeholder="Find text">
-        <input id="replaceText" class="border p-2 w-full mb-2" placeholder="Replace with">
-        <button onclick="replaceTextAll()"
-          class="bg-indigo-600 text-white px-3 py-1 rounded w-full">
-          Replace All
-        </button>
-      </div>
-
-      <!-- Paragraph editor -->
-      <div id="paraBox" class="hidden bg-white p-3 border rounded mb-3">
-        <p class="text-sm mb-1 text-gray-700">Edit paragraph of selected text:</p>
-        <textarea id="paraInput" class="border w-full rounded p-2" rows="4"></textarea>
-        <button onclick="applyParagraphEdit()"
-          class="bg-indigo-600 text-white px-3 py-1 rounded w-full mt-2">
-          Apply to selected text block
-        </button>
-      </div>
-
-      <!-- Signature pad -->
-      <div id="signBox" class="hidden bg-white border p-3 rounded mb-3">
-        <canvas id="signCanvas" class="border bg-white w-full h-40"></canvas>
-        <button onclick="addSignatureToPDF()"
-          class="bg-green-600 text-white w-full mt-2 rounded p-1">
-          Add Signature to PDF
-        </button>
-      </div>
-
-      <!-- Canvas wrapper (horizontal scroll for mobile) -->
-      <div class="bg-gray-100 p-2 md:p-4 rounded-xl overflow-scroll touch-pan touch-pinch"
-             style="max-height:75vh; -webkit-overflow-scrolling: touch;">
-            <div style="min-width:100%; display:flex; justify-content:center;">
-        <div class="bg-white shadow-xl p-4 rounded-xl min-w-[800px] max-w-full">
-          <canvas id="pdf-canvas"></canvas>
+      <div class="bg-gray-100 p-2 md:p-4 rounded-xl overflow-scroll touch-pan" style="max-height:75vh;">
+        <div style="min-width:100%; display:flex; justify-content:center;">
+          <div class="bg-white shadow-xl p-4 rounded-xl min-w-[800px]">
+            <canvas id="pdf-canvas"></canvas>
+          </div>
         </div>
       </div>
 
     </div>
   </div>
-  </div>
+
 </section>
-
-
-<!-- ================== RANDOM TOOL SUGGESTION GRID ================== -->
-<section class="max-w-7xl mx-auto mt-16">
-  <h2 class="text-xl font-black mb-5 text-slate-900 dark:text-slate-100">
-    Explore More Tools
-  </h2>
-
-  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-
-    <!-- ✅ 10 RANDOM NORMAL TOOLS (SAFE METHOD) -->
-    {% for tool in random_tools %}
-      <a href="{{ url_for('tool_page', slug=tool.slug) }}"
-         class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm hover:shadow-lg transition group">
-
-        <div class="flex flex-col items-start gap-2">
-          <img src="{{ url_for('static', filename='icons/' ~ tool.icon) }}"
-               class="h-10 w-10"
-               alt="{{ tool.title }}">
-
-          <h4 class="font-semibold text-sm text-slate-900 dark:text-white group-hover:text-violet-600">
-            {{ tool.title }}
-          </h4>
-
-          <p class="text-xs text-slate-500 leading-tight">
-            {{ tool.desc }}
-          </p>
-        </div>
-      </a>
-    {% endfor %}
-
-
-    <!-- ✅ ALL AI TOOLS -->
-    {% for tool in ai_tools %}
-    <a href="{{ tool.url }}"
-       class="bg-gradient-to-br from-violet-600 to-indigo-600 rounded-xl p-4 shadow-sm hover:shadow-lg transition text-white">
-
-      <div class="flex flex-col items-start gap-2">
-        <img src="{{ url_for('static', filename='icons/' ~ tool.icon) }}"
-             class="h-10 w-10 invert"
-             alt="{{ tool.title }}">
-
-        <h4 class="font-semibold text-sm">
-          {{ tool.title }}
-        </h4>
-
-        <p class="text-xs opacity-90">
-          {{ tool.desc }}
-        </p>
-      </div>
-    </a>
-    {% endfor %}
-
-  </div>
-</section>
-<!-- ========================================================= -->
-
 
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-<script>
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
-</script>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<script>pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 
 <script>
 
 let realEdits = [];
 let currentScale = 1;
-let currentViewportHeight = 0;
 
 let pdfDoc = null;
 let currentPage = 1;
 let baseWidth = 800;
-let isRendering = false;
 
-const canvas = document.getElementById("pdf-canvas");
-const ctx = canvas.getContext("2d");
+let fabricCanvas = new fabric.Canvas("pdf-canvas");
+let ctx = document.getElementById("pdf-canvas").getContext("2d");
 
-const fabricCanvas = new fabric.Canvas("pdf-canvas");
-fabricCanvas.allowTouchScrolling = true;
+document.getElementById("uploadBtn").addEventListener("click", async function(){
 
-const statusText = document.getElementById("status");
+  const file = document.getElementById("pdfUpload").files[0];
+  if(!file){ alert("Select a PDF"); return; }
 
-/* ================= UPLOAD BUTTON ================= */
-document.addEventListener("DOMContentLoaded", function(){
+  const status = document.getElementById("status");
+  status.innerText="⏳ Loading PDF...";
 
-  const uploadBtn = document.getElementById("uploadBtn");
-  const fileInput = document.getElementById("pdfUpload");
+  const reader = new FileReader();
+  reader.onload = async function(e){
+    const bytes = new Uint8Array(e.target.result);
+    pdfDoc = await pdfjsLib.getDocument({data:bytes}).promise;
 
-  uploadBtn.addEventListener("click", async function(){
+    currentPage=1;
+    document.getElementById("pageCount").innerText = pdfDoc.numPages;
 
-    const file = fileInput.files[0];
+    await showPage(currentPage);
+    generateThumbs();
 
-    if(!file){
-      alert("Please select a PDF");
-      return;
-    }
+    status.innerText="✅ PDF loaded";
+  }
 
-    statusText.innerText = "Loading PDF on canvas...";
+  reader.readAsArrayBuffer(file);
 
-    const reader = new FileReader();
-
-    reader.onload = async function(e){
-
-      const bytes = new Uint8Array(e.target.result);
-
-      pdfDoc = await pdfjsLib.getDocument({data: bytes}).promise;
-
-      currentPage = 1;
-      document.getElementById("pageCount").innerText = pdfDoc.numPages;
-
-      await showPage(currentPage);
-      generateThumbs();
-
-      statusText.innerText = "✅ PDF loaded on canvas";
-    };
-
-    reader.readAsArrayBuffer(file);
-
-    // Upload to server (for final real edit save)
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const response = await fetch("/ai/upload-pdf", {
-      method: "POST",
-      body: formData
-    });
-
-    const result = await response.json();
-
-    if(result.success){
-      window.serverPDF = result.filename;
-      statusText.innerText = "✅ Ready for real editing";
-    } else {
-      statusText.innerText = "❌ Upload failed";
-    }
-
-  });
-
+  const formData=new FormData();
+  formData.append("file",file);
+  const res=await fetch("/ai/upload-pdf",{method:"POST",body:formData});
+  const data=await res.json();
+  if(data.success){ window.serverPDF=data.filename; }
 });
 
 
-/* ================= SHOW PAGE ================= */
 async function showPage(n){
 
-  if (!pdfDoc || isRendering) return;
+  const page = await pdfDoc.getPage(n);
+  const unscaled = page.getViewport({scale:1});
+  const scale = baseWidth/unscaled.width;
+  currentScale = scale;
 
-  isRendering = true;
-  currentPage = n;
-  document.getElementById("pageNum").innerText = n;
+  const viewport = page.getViewport({scale});
 
-  try {
+  const canvas = document.getElementById("pdf-canvas");
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
 
-    const page = await pdfDoc.getPage(n);
+  fabricCanvas.setWidth(viewport.width);
+  fabricCanvas.setHeight(viewport.height);
 
-    const unscaled = page.getViewport({ scale: 1 });
-    const scale = baseWidth / unscaled.width;
-    const viewport = page.getViewport({ scale });
+  await page.render({canvasContext:ctx,viewport}).promise;
 
-    currentScale = scale;
-    currentViewportHeight = viewport.height;
+  const bg = canvas.toDataURL();
+  fabric.Image.fromURL(bg,img=>{
+    fabricCanvas.setBackgroundImage(img,fabricCanvas.renderAll.bind(fabricCanvas));
+  });
 
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
+  const text = await page.getTextContent();
 
-    fabricCanvas.setWidth(viewport.width);
-    fabricCanvas.setHeight(viewport.height);
+  text.items.forEach(t=>{
+    if(!t.str.trim()) return;
 
-    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+    const tx=pdfjsLib.Util.transform(viewport.transform,t.transform);
+    const x=tx[4];
+    const y=tx[5];
 
-    const bgImage = canvas.toDataURL("image/png");
-
-    fabricCanvas.clear();
-
-    await new Promise(resolve => {
-      fabric.Image.fromURL(bgImage, function(img){
-        img.selectable = false;
-        img.evented = false;
-        img.scaleToWidth(fabricCanvas.width);
-        img.scaleToHeight(fabricCanvas.height);
-        fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas));
-        resolve();
-      });
+    const obj = new fabric.Textbox(t.str,{
+      left:x,
+      top:y,
+      fontSize:t.height*scale,
+      fill:"#000"
     });
 
-    const textContent = await page.getTextContent();
-    const styles = textContent.styles || {};
+    obj.pageIndex = n;
+    obj.pdfRect = {x:x/scale,y:y/scale,width:t.width,height:t.height};
 
-    let lines = {};
-    const tolerance = 12;
-
-    textContent.items.forEach(t => {
-
-      if (!t.str.trim()) return;
-
-      const tx = pdfjsLib.Util.transform(viewport.transform, t.transform);
-      const x = tx[4];
-      const y = Math.round((tx[5] / 5) * 5);
-
-      if (!lines[y]) lines[y] = [];
-
-      lines[y].push({
-        text: t.str,
-        x: x,
-        width: t.width,
-        height: t.height,
-        font: t.fontName
-      });
-
-    });
-
-    Object.keys(lines).forEach(yKey => {
-
-      const items = lines[yKey].sort((a,b) => a.x - b.x);
-
-      let fullText = "";
-      let startX = items[0].x;
-      let totalWidth = 0;
-
-      items.forEach((item, i) => {
-
-        if(i > 0){
-          const gap = item.x - (items[i-1].x + (items[i-1].width * scale));
-          if (gap > tolerance) fullText += " ";
-        }
-
-        fullText += item.text;
-        totalWidth += (item.width * scale) + 3;
-
-      });
-
-      const style = styles[items[0].font] || {};
-      let fontFamily = "Times New Roman";
-
-      if(style.fontFamily){
-        fontFamily = String(style.fontFamily).split(",")[0].replace(/["']/g,"");
-      }
-
-      const lineHeight = items[0].height * scale;
-      const topY = yKey - lineHeight;
-
-      const eraseBox = new fabric.Rect({
-        left: startX,
-        top: topY,
-        width: totalWidth + 8,
-        height: lineHeight + 6,
-        fill: "#7c3aed",
-        opacity: 0.15,
-        selectable: false,
-        evented: false
-      });
-
-      const txt = new fabric.Textbox(fullText, {
-        left: startX,
-        top: topY,
-        fontSize: lineHeight,
-        fill: "#000",
-        fontFamily: fontFamily,
-        width: totalWidth + 100,
-        editable: true
-      });
-
-      // Store real PDF position
-      txt.pdfRect = {
-        x0: startX / currentScale,
-        y0: topY / currentScale,
-        x1: (startX + totalWidth) / currentScale,
-        y1: (topY + lineHeight) / currentScale
-      };
-
-      txt.pageIndex = n;
-      txt.fontSizePdf = lineHeight / currentScale;
-      txt.originalText = fullText;
-
-      fabricCanvas.add(eraseBox);
-      fabricCanvas.add(txt);
-
-    });
-
-    fabricCanvas.renderAll();
-    statusText.innerText = "Page " + n + " ready ✅";
-
-  } catch (err){
-    console.error(err);
-    statusText.innerText = "❌ Page load error";
-  }
-
-  isRendering = false;
-
+    fabricCanvas.add(obj);
+  });
 }
 
-
-/* ================= TRACK REAL TEXT EDIT ================= */
-fabricCanvas.on("text:editing:entered", function(e){
-  const obj = e.target;
-  obj._beforeText = obj.text;
-});
-
-fabricCanvas.on("text:editing:exited", function(e){
-
-  const obj = e.target;
-  if (!obj.pdfRect) return;
-
-  if(obj._beforeText === obj.text) return;
+fabricCanvas.on("text:editing:exited",(e)=>{
+  const obj=e.target;
+  if(!obj) return;
 
   realEdits.push({
-    page: obj.pageIndex,
-    rect: obj.pdfRect,
-    newText: obj.text,
-    fontSize: obj.fontSizePdf
+    page:obj.pageIndex,
+    rect:obj.pdfRect,
+    newText:obj.text
   });
 
-  statusText.innerText = "✏️ Text updated";
+  document.getElementById("status").innerText="✏ Text will be saved in PDF";
 });
 
 
-/* ================= SAVE FULL REAL PDF ================= */
 async function saveFullPDF(){
 
-  if(!window.serverPDF){
-    alert("Upload a PDF first");
+  if(!window.serverPDF || !realEdits.length){
+    alert("No edits found");
     return;
   }
 
-  if(realEdits.length === 0){
-    alert("No text edits done");
-    return;
-  }
+  const formData=new FormData();
+  formData.append("filename",window.serverPDF);
+  formData.append("edits",JSON.stringify(realEdits));
 
-  statusText.innerText = "⏳ Applying real edits…";
+  const res = await fetch("/ai/apply-real-edits",{method:"POST",body:formData});
+  const blob=await res.blob();
 
-  const formData = new FormData();
-  formData.append("filename", window.serverPDF);
-  formData.append("edits", JSON.stringify(realEdits));
-
-  const res = await fetch("/ai/apply-real-edits", {
-    method: "POST",
-    body: formData
-  });
-
-  if(!res.ok){
-    statusText.innerText = "❌ Save failed";
-    return;
-  }
-
-  const blob = await res.blob();
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "BlinkPDF_REAL_EDITED.pdf";
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="BlinkPDF_REAL_EDITED.pdf";
   a.click();
 
-  realEdits = [];
-
-  statusText.innerText = "✅ Real PDF saved";
 }
 
+async function rewriteSelectedText(){
 
-/* ================= THUMBNAILS ================= */
-async function generateThumbs(){
+  if(!selectedTextObj){
+    alert("Select text first");
+    return;
+  }
 
-  const thumbs = document.getElementById("thumbs");
-  thumbs.innerHTML = "";
+  const originalText = selectedTextObj.text;
 
-  for(let i=1;i<=pdfDoc.numPages;i++){
+  if(!originalText.trim()) {
+    alert("Nothing to rewrite");
+    return;
+  }
 
-    const page = await pdfDoc.getPage(i);
-    const view = page.getViewport({ scale: 0.25 });
+  document.getElementById("status").innerText = "🤖 Rewriting...";
 
-    const c = document.createElement("canvas");
-    c.width = view.width;
-    c.height = view.height;
+  const res = await fetch("/ai/rewrite", {
+    method: "POST",
+    headers: { "Content-Type":"application/json" },
+    body: JSON.stringify({ text: originalText })
+  });
 
-    await page.render({ canvasContext: c.getContext("2d"), viewport: view }).promise;
+  const data = await res.json();
 
-    const img = document.createElement("img");
-    img.src = c.toDataURL();
-    img.className = "border rounded cursor-pointer mb-2 w-full";
+  if(data.result){
 
-    img.onclick = () => showPage(i);
-    thumbs.appendChild(img);
+    // Change text in canvas
+    selectedTextObj.text = data.result;
+    fabricCanvas.renderAll();
 
+    // Track for real PDF replacement
+    realEdits.push({
+      page: selectedTextObj.pageIndex,
+      rect: selectedTextObj.pdfRect,
+      newText: data.result,
+      fontSize: selectedTextObj.fontSizePdf || 12
+    });
+
+    document.getElementById("status").innerText="✅ AI rewrite applied";
+  } else {
+    alert("Rewrite failed");
   }
 }
-
-
-/* ================= PAGE CONTROLS ================= */
-function prevPage(){
-  if (currentPage <= 1) return;
-  showPage(currentPage - 1);
-}
-
-function nextPage(){
-  if (currentPage >= pdfDoc.numPages) return;
-  showPage(currentPage + 1);
-}
-
-function zoomIn(){
-  baseWidth *= 1.1;
-  showPage(currentPage);
-}
-
-function zoomOut(){
-  baseWidth /= 1.1;
-  showPage(currentPage);
-}
-
-
-/* ================= MOBILE SCROLL FIX ================= */
-canvas.addEventListener("touchmove", function(e){
-  if(e.touches.length === 1){
-    const wrap = canvas.closest(".touch-pan");
-    if(wrap){
-      wrap.scrollLeft -= e.touches[0].movementX || 0;
-      wrap.scrollTop -= e.touches[0].movementY || 0;
-    }
-  }
-});
 
 </script>
-
 
 {% endblock %}

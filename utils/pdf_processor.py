@@ -7,6 +7,7 @@ from shutil import copyfile
 from PIL import Image
 from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
 import fitz  # PyMuPDF
 
 
@@ -60,22 +61,27 @@ class PDFProcessor:
 
     # ---------------- REAL CROP ----------------
     def crop_pdf(self, input_path, out_dir, form):
-        x = float(form.get("x", 0))
-        y = float(form.get("y", 0))
-        w = float(form.get("w", 400))
-        h = float(form.get("h", 400))
+        try:
+            x = float(form.get("x", 0))
+            y = float(form.get("y", 0))
+            w = float(form.get("w", 400))
+            h = float(form.get("h", 400))
+        except:
+            x, y, w, h = 0, 0, 400, 400
 
         doc = fitz.open(input_path)
-        rect = None
 
         for page in doc:
-            # build crop rectangle per page size
             page_rect = page.rect
-            # keep within bounds
+
             left = max(0, x)
             top = max(0, y)
             right = min(page_rect.width, x + w)
             bottom = min(page_rect.height, y + h)
+
+            if right <= left or bottom <= top:
+                continue
+
             rect = fitz.Rect(left, top, right, bottom)
             page.set_cropbox(rect)
 
@@ -83,6 +89,7 @@ class PDFProcessor:
         doc.save(output)
         doc.close()
         return output
+
 
     # ---------------- REAL RESIZE ----------------
     def resize_pdf(self, input_path, out_dir, form):
@@ -107,10 +114,10 @@ class PDFProcessor:
 
         # ---------------- PROTECT PDF (REAL WORKING) ----------------
     def protect_pdf(self, input_path, out_dir, form):
-        password = form.get("password", "").strip()
+        password = str(form.get("password", "")).strip()
 
         if not password:
-            password = "12345"   # fallback if user forgets
+            password = "12345"  # fallback if user forgets
 
         reader = PdfReader(input_path)
         writer = PdfWriter()
@@ -118,7 +125,7 @@ class PDFProcessor:
         for page in reader.pages:
             writer.add_page(page)
 
-        writer.encrypt(password)
+        writer.encrypt(password, algorithm="AES-256")
 
         out = self._out(out_dir, f"protected_{self._ts()}.pdf")
         with open(out, "wb") as f:
@@ -127,9 +134,10 @@ class PDFProcessor:
         return out
 
 
+
         # ---------------- UNLOCK (REAL) ----------------
     def unlock_pdf(self, input_path, out_dir, form):
-        password = form.get("password", "").strip()
+        password = str(form.get("password", "")).strip()
 
         reader = PdfReader(input_path)
 
@@ -146,6 +154,7 @@ class PDFProcessor:
             writer.write(f)
 
         return out
+
 
 
     # ---------------- REAL OPTIMIZE ----------------
@@ -176,8 +185,11 @@ class PDFProcessor:
 
     # ---------------- REAL DESKEW (USER ANGLE) ----------------
     def deskew_pdf(self, input_path, out_dir, form):
-        # Use small angle to "deskew" pages; relies on user input
-        angle = float(form.get("angle", 0))
+        try:
+            angle = float(form.get("angle", 0))
+        except:
+            angle = 0
+
         if angle == 0:
             return self.clean_copy(input_path, out_dir)
 
@@ -185,7 +197,9 @@ class PDFProcessor:
         new_doc = fitz.open()
 
         for page in doc:
-            pix = page.get_pixmap(matrix=fitz.Matrix(1, 1).preRotate(angle))
+            matrix = fitz.Matrix(1, 1).prerotate(angle)
+            pix = page.get_pixmap(matrix=matrix)
+
             new_page = new_doc.new_page(width=pix.width, height=pix.height)
             new_page.insert_image(new_page.rect, pixmap=pix)
 
@@ -193,7 +207,9 @@ class PDFProcessor:
         new_doc.save(output, deflate=True, garbage=4)
         new_doc.close()
         doc.close()
+
         return output
+
 
     # ---------------- REAL ANNOTATE (TEXT STAMP) ----------------
     def annotate_pdf(self, input_path, out_dir, form):
@@ -306,17 +322,23 @@ class PDFProcessor:
     # ---------------- ROTATE ----------------
     def rotate_pdf(self, input_path, out_dir, form):
         angle = int(form.get("angle", 90))
+
+        if angle not in [90, 180, 270]:
+            angle = 90
+
         reader = PdfReader(input_path)
         writer = PdfWriter()
 
         for page in reader.pages:
-            page.rotate(angle)
+            page.rotate_clockwise(angle)
             writer.add_page(page)
 
         out = self._out(out_dir, f"rotated_{self._ts()}.pdf")
         with open(out, "wb") as f:
             writer.write(f)
+
         return out
+
 
     # ---------------- WATERMARK ----------------
     def watermark_pdf(self, input_path, out_dir, form):
