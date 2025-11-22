@@ -188,6 +188,10 @@ def ai_tools_page():
 def privacy():
     return render_template("privacy.html")
     
+@app.route("/terms")
+def terms():
+    return render_template("terms.html")
+    
 @app.route("/tool/<slug>")
 def tool_page(slug):
     tool = next((t for t in TOOLS if t["slug"] == slug), None)
