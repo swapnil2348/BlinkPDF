@@ -1,237 +1,736 @@
 {% extends "base.html" %}
-
 {% block title %}{{ tool.title }} — BlinkPDF{% endblock %}
-{% block meta %}{{ tool.desc }} Online with BlinkPDF tools{% endblock %}
+{% block meta %}{{ tool.desc }}{% endblock %}
 
 {% block content %}
+<section class="bg-gradient-to-b from-violet-50 to-white py-10">
+  <div id="tool-root"
+       class="max-w-6xl mx-auto px-4"
+       data-tool-slug="{{ tool.slug }}">
+    <!-- Header -->
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
+      <div>
+        <div class="inline-flex items-center gap-3 px-3 py-1 rounded-full bg-violet-100 text-violet-700 text-xs font-medium mb-3">
+          <div class="w-6 h-6 rounded-full bg-white flex items-center justify-center shadow-sm border border-violet-200">
+            <img src="{{ url_for('static', filename='icons/' ~ tool.icon) }}"
+                 alt="{{ tool.title }} icon"
+                 class="w-4 h-4">
+          </div>
+          <span>{{ tool.slug | replace('-', ' ') | title }}</span>
+        </div>
+        <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">
+          {{ tool.title }}
+        </h1>
+        <p class="text-sm sm:text-base text-slate-600 max-w-xl">
+          {{ tool.desc }}
+        </p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          Fast processing
+        </span>
+        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-50 text-slate-600 border border-slate-100">
+          <span class="w-1.5 h-1.5 rounded-full bg-violet-400"></span>
+          Secure & private
+        </span>
+        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-50 text-slate-600 border border-slate-100">
+          No signup
+        </span>
+      </div>
+    </div>
 
-<section class="bg-gradient-to-b from-violet-100 to-transparent rounded-2xl p-6 mb-6 shadow-sm">
-  <h1 class="text-3xl font-extrabold tracking-tight text-gray-900 flex items-center gap-3">
-    <img src="{{ url_for('static', filename='icons/' + tool.icon) }}" class="h-10 w-10">
-    {{ tool.title }}
-  </h1>
-  <p class="text-gray-600 max-w-2xl mt-2">{{ tool.desc }}</p>
-</section>
+    <!-- Main layout -->
+    <div class="grid lg:grid-cols-2 gap-6 lg:gap-8 items-start">
+      <!-- LEFT: Upload + Advanced -->
+      <div class="space-y-6">
+        <!-- Upload card -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-5">
+          <h2 class="text-sm font-semibold text-slate-800 mb-3 flex items-center justify-between">
+            Upload file{% if tool.slug == 'merge-pdf' or tool.slug == 'image-to-pdf' %}s{% endif %}
+            <span class="text-[11px] uppercase tracking-wide text-slate-400">
+              Step 1
+            </span>
+          </h2>
 
-<form method="POST"
-      action="{{ url_for('process', slug=tool.slug) }}"
-      enctype="multipart/form-data"
-      class="bg-white rounded-2xl border shadow-md p-6 space-y-6">
+          <div id="upload-area"
+               class="relative border border-dashed border-violet-200 rounded-xl p-4 sm:p-6 text-center cursor-pointer hover:border-violet-400 transition group">
+            <input
+              id="file-input"
+              type="file"
+              name="file"
+              class="absolute inset-0 opacity-0 cursor-pointer"
+              {% if tool.slug in ['merge-pdf','image-to-pdf'] %}multiple{% endif %}
+              {% if tool.slug not in ['word-to-pdf','excel-to-pdf','powerpoint-to-pdf','image-to-pdf','background-remover'] %}
+                accept=".pdf"
+              {% endif %}
+            >
+            <div class="flex flex-col items-center gap-3 pointer-events-none">
+              <div class="w-11 h-11 rounded-2xl bg-violet-50 flex items-center justify-center border border-violet-100 group-hover:bg-violet-100 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-violet-500" fill="none"
+                     viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M12 16V4m0 0L8 8m4-4 4 4M6 16h12a2 2 0 0 1 2 2v1a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-1a2 2 0 0 1 2-2Z" />
+                </svg>
+              </div>
+              <div class="space-y-0.5">
+                <p class="text-sm font-medium text-slate-900">
+                  Click to upload{% if tool.slug in ['merge-pdf','image-to-pdf'] %} files{% else %} file{% endif %} or drag & drop
+                </p>
+                <p class="text-[11px] text-slate-500">
+                  {% if tool.slug in ['word-to-pdf','excel-to-pdf','powerpoint-to-pdf'] %}
+                    Supports DOCX, PPTX, XLSX · Max 500MB
+                  {% elif tool.slug == 'image-to-pdf' or tool.slug == 'background-remover' %}
+                    Supports JPG, PNG, WEBP · Max 500MB
+                  {% else %}
+                    Supports PDF · Max 500MB
+                  {% endif %}
+                </p>
+              </div>
+              <div id="file-info" class="hidden text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-full px-3 py-1 mt-1 max-w-full truncate">
+                No file selected
+              </div>
+            </div>
+          </div>
+        </div>
 
-<!-- FILE UPLOAD -->
-<div>
-  <label class="font-semibold block mb-2">Upload File(s)</label>
-  <input type="file" id="fileInput" name="file" multiple required class="hidden">
+        <!-- Advanced settings card -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-5">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-semibold text-slate-800">
+              Advanced settings
+            </h2>
+            <span class="text-[11px] uppercase tracking-wide text-slate-400">
+              Optional
+            </span>
+          </div>
 
-  <div id="dropZone"
-       class="w-full border-2 border-dashed border-violet-300 p-8 rounded-xl bg-violet-50 text-center cursor-pointer">
-    Click or Drop files here
-  </div>
+          <div class="space-y-4 text-xs sm:text-sm text-slate-700">
+            <!-- Tool specific options -->
+            {% if tool.slug == 'compress-pdf' %}
+              <!-- Compression level -->
+              <div class="space-y-1">
+                <div class="flex items-center justify-between mb-1">
+                  <label for="compression_level" class="font-medium">Compression level</label>
+                  <span id="compression-label" class="text-[11px] font-semibold text-violet-600">
+                    Balanced
+                  </span>
+                </div>
+                <input
+                  id="compression_level"
+                  name="compression_level"
+                  type="range"
+                  min="1"
+                  max="3"
+                  step="1"
+                  value="2"
+                  class="w-full accent-violet-500">
+                <div class="flex justify-between text-[11px] text-slate-400 mt-1">
+                  <span>High quality</span>
+                  <span>Balanced</span>
+                  <span>Smallest file</span>
+                </div>
+              </div>
+            {% endif %}
 
-  <ul id="fileList" class="mt-4 space-y-2"></ul>
+            {% if tool.slug == 'rotate-pdf' %}
+              <!-- Rotation controls -->
+              <div class="space-y-2">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="font-medium">Rotation</span>
+                  <span id="rotation-label" class="text-[11px] font-semibold text-violet-600">0°</span>
+                </div>
+                <div class="flex items-center gap-3 mb-2">
+                  <button type="button"
+                          class="rotate-btn px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:border-violet-400 hover:text-violet-700 flex items-center gap-1"
+                          data-direction="-90">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none"
+                         viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M4 4v6h6M20 20v-6h-6M5 19a8 8 0 0 0 11.31 0L20 15M4 9l3.69-4a8 8 0 0 1 11.31 0" />
+                    </svg>
+                    -90°
+                  </button>
+                  <button type="button"
+                          class="rotate-btn px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:border-violet-400 hover:text-violet-700 flex items-center gap-1"
+                          data-direction="90">
+                    +90°
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none"
+                         viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M20 4v6h-6M4 20v-6h6M19 19a8 8 0 0 1-11.31 0L4 15M20 9l-3.69-4a8 8 0 0 0-11.31 0" />
+                    </svg>
+                  </button>
+                  <button type="button"
+                          id="rotation-reset"
+                          class="ml-auto px-2.5 py-1.5 rounded-lg border border-slate-200 text-[11px] font-medium text-slate-500 hover:border-slate-300">
+                    Reset
+                  </button>
+                </div>
+                <input
+                  id="rotation-slider"
+                  type="range"
+                  min="0"
+                  max="270"
+                  step="90"
+                  value="0"
+                  class="w-full accent-violet-500">
+                <input type="hidden" id="rotation_angle_input" name="rotation_angle" value="0">
+              </div>
+            {% endif %}
 
-  <!-- LIVE PREVIEW -->
-  <div id="preview-container"
-       class="w-full h-96 border rounded-xl bg-gray-50 flex items-center justify-center mb-4 overflow-hidden relative">
-    <canvas id="pdf-preview"></canvas>
+            {% if tool.slug in ['split-pdf','extract-pages','crop-pdf','resize-pdf','flatten-pdf','organize-pdf'] %}
+              <!-- Page selection -->
+              <div class="space-y-1">
+                <label for="pages" class="font-medium">
+                  Pages
+                  <span class="text-[11px] text-slate-400 ml-1">(e.g. 1-3,5,8)</span>
+                </label>
+                <input
+                  id="pages"
+                  name="pages"
+                  type="text"
+                  class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-400"
+                  placeholder="Leave empty for all pages">
+              </div>
+            {% endif %}
 
-    <!-- Watermark live text -->
-    <div id="wm-preview"
-         class="absolute text-gray-600 font-bold pointer-events-none opacity-40 hidden">
+            {% if tool.slug in ['protect-pdf','unlock-pdf'] %}
+              <!-- Password -->
+              <div class="space-y-1">
+                <label for="password" class="font-medium">
+                  {% if tool.slug == 'protect-pdf' %}Set password{% else %}PDF password{% endif %}
+                </label>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-400"
+                  placeholder="{% if tool.slug == 'protect-pdf' %}Choose a strong password{% else %}Enter PDF password{% endif %}">
+              </div>
+            {% endif %}
+
+            {% if tool.slug == 'watermark-pdf' %}
+              <!-- Watermark text -->
+              <div class="space-y-1">
+                <label for="watermark_text" class="font-medium">
+                  Watermark text
+                </label>
+                <input
+                  id="watermark_text"
+                  name="watermark_text"
+                  type="text"
+                  class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-400"
+                  placeholder="CONFIDENTIAL · DRAFT · Do not copy">
+                <p class="text-[11px] text-slate-400 mt-1">
+                  Preview watermark is shown on the thumbnails.
+                </p>
+              </div>
+            {% endif %}
+
+            {% if tool.slug in ['metadata-editor','fill-forms'] %}
+              <!-- Simple toggle note -->
+              <p class="text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+                This tool uses your original PDF structure. Use the live preview to check pages before processing.
+              </p>
+            {% endif %}
+
+            <!-- Generic checkbox: keep original file name -->
+            <div class="pt-2 border-t border-dashed border-slate-100 mt-2">
+              <label class="inline-flex items-center gap-2 text-[11px] text-slate-500">
+                <input type="checkbox"
+                       name="keep_filename"
+                       value="1"
+                       class="rounded border-slate-300 text-violet-600 focus:ring-violet-500/40"
+                       checked>
+                <span>Keep original filename when possible</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Process button -->
+        <form id="tool-form"
+              action="{{ url_for('process_tool', slug=tool.slug) }}"
+              method="post"
+              enctype="multipart/form-data"
+              class="space-y-3">
+          <!-- Hidden file input target -->
+          <input type="file"
+                 name="file"
+                 id="hidden-file-input"
+                 class="hidden"
+                 {% if tool.slug in ['merge-pdf','image-to-pdf'] %}multiple{% endif %}>
+
+          <!-- Hidden mirror of advanced fields (they will be copied from visible controls before submit) -->
+          <input type="hidden" name="compression_level" id="hidden_compression_level">
+          <input type="hidden" name="pages" id="hidden_pages">
+          <input type="hidden" name="password" id="hidden_password">
+          <input type="hidden" name="watermark_text" id="hidden_watermark_text">
+          <input type="hidden" name="keep_filename_hidden" id="hidden_keep_filename">
+
+          <button
+            type="submit"
+            id="process-btn"
+            class="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold py-3.5 shadow-sm shadow-violet-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition">
+            <span class="flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5" fill="none"
+                   viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M12 4v16m0-16 5 5m-5-5-5 5" />
+              </svg>
+              <span>Process {{ tool.title }}</span>
+            </span>
+          </button>
+
+          <p class="text-[11px] text-slate-400 text-center">
+            Processing happens in the cloud. Your files are deleted automatically after a short time.
+          </p>
+        </form>
+      </div>
+
+      <!-- RIGHT: Live preview -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-5 flex flex-col h-full">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h2 class="text-sm font-semibold text-slate-800">
+              Live preview
+            </h2>
+            <p class="text-[11px] text-slate-500">
+              Shows the first pages of your PDF with advanced settings applied visually.
+            </p>
+          </div>
+          <div class="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-1 border border-slate-100">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            <span class="text-[11px] text-slate-500">Local preview · No upload yet</span>
+          </div>
+        </div>
+
+        <div id="preview-wrapper" class="flex-1 min-h-[220px] rounded-xl border border-dashed border-slate-200 bg-slate-50/60 flex flex-col">
+          <div id="preview-empty-state" class="flex-1 flex flex-col items-center justify-center text-center px-4 py-8">
+            <div class="w-12 h-12 rounded-2xl bg-white shadow-sm border border-slate-100 flex items-center justify-center mb-3">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-slate-400" fill="none"
+                   viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M8 3h8l4 4v11a2 2 0 0 1-2 2H8m0-17a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2m0-17v4h8" />
+              </svg>
+            </div>
+            <p class="text-xs font-medium text-slate-700 mb-1">No file selected yet</p>
+            <p class="text-[11px] text-slate-500">
+              Choose a PDF above to see page thumbnails and effects of advanced settings.
+            </p>
+          </div>
+
+          <div id="preview-content" class="flex-1 hidden flex-col">
+            <!-- Top bar -->
+            <div class="flex items-center justify-between px-3 py-2 border-b border-slate-200 bg-slate-50/80">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span id="preview-filename" class="text-xs font-medium text-slate-700 truncate max-w-[160px] sm:max-w-xs">
+                  file.pdf
+                </span>
+              </div>
+              <div class="flex items-center gap-2 text-[11px] text-slate-400">
+                <span id="preview-pages-count">0 pages</span>
+                <span>·</span>
+                <span id="preview-size">0 MB</span>
+              </div>
+            </div>
+
+            <!-- Thumbnails -->
+            <div class="flex-1 overflow-auto p-3 sm:p-4">
+              <div id="preview-thumbnails"
+                   class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 auto-rows-max">
+                <!-- canvas thumbnails injected by JS -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-3 flex items-center justify-between text-[11px] text-slate-400">
+          <span>
+            Preview is approximate. Final result is generated by the server.
+          </span>
+          <button type="button"
+                  id="preview-reset-btn"
+                  class="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-slate-200 bg-white hover:border-slate-300">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none"
+                 viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M4 4v6h6M20 20v-6h-6M5 19a8 8 0 0 0 11.31 0L20 15M4 9l3.69-4a8 8 0 0 1 11.31 0" />
+            </svg>
+            Reset preview
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- More tools (random suggestions) -->
+    <div class="mt-10 border-t border-slate-100 pt-6">
+      <h3 class="text-sm font-semibold text-slate-800 mb-3">
+        You might also need
+      </h3>
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        {% for t in random_tools %}
+          <a href="{{ url_for('tool_page', slug=t.slug if t.slug is defined else t['slug']) }}"
+             class="group bg-white rounded-xl border border-slate-100 hover:border-violet-200 shadow-sm hover:shadow-md transition p-3 flex items-start gap-2.5 text-xs">
+            <div class="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center border border-violet-100">
+              <img src="{{ url_for('static', filename='icons/' ~ (t.icon if t.icon is defined else t['icon'])) }}"
+                   alt="{{ t.title if t.title is defined else t['title'] }}"
+                   class="w-4 h-4">
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2">
+                <p class="font-semibold text-slate-800 truncate">
+                  {{ t.title if t.title is defined else t['title'] }}
+                </p>
+                <svg xmlns="http://www.w3.org/2000/svg"
+                     class="w-3.5 h-3.5 text-slate-300 group-hover:text-violet-400 flex-shrink-0"
+                     fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+              <p class="text-[11px] text-slate-500 line-clamp-2">
+                {{ t.desc if t.desc is defined else t['desc'] }}
+              </p>
+            </div>
+          </a>
+        {% endfor %}
+      </div>
     </div>
   </div>
+</section>
 
-  <p class="text-xs text-gray-500 mt-2">
-    Drag files up or down to rearrange the order
-  </p>
-</div>
-
-<!-- ================= TOOL SETTINGS ================= -->
-
-{% if tool.slug == "compress-pdf" %}
-<div class="p-4 bg-gray-50 rounded-xl border">
-  <h3 class="font-semibold mb-2">Compression Level</h3>
-  <select name="level" id="compression_level" class="border p-2 rounded w-full">
-    <option value="low">Low (Best Quality)</option>
-    <option value="medium">Medium (Balanced)</option>
-    <option value="high">High (Smallest Size)</option>
-  </select>
-</div>
-{% endif %}
-
-{% if tool.slug in ["crop-pdf","resize-pdf"] %}
-<div class="p-4 bg-gray-50 rounded-xl border grid grid-cols-2 gap-3">
-  <input type="number" name="width" id="width" placeholder="Width (px)" class="border p-2 rounded">
-  <input type="number" name="height" id="height" placeholder="Height (px)" class="border p-2 rounded">
-</div>
-{% endif %}
-
-{% if tool.slug == "rotate-pdf" %}
-<div class="p-4 bg-gray-50 rounded-xl border">
-  <label class="text-sm font-semibold">Angle</label>
-  <select name="angle" id="angle" class="border p-2 rounded w-full">
-    <option value="0">0°</option>
-    <option value="90">90°</option>
-    <option value="180">180°</option>
-    <option value="270">270°</option>
-  </select>
-</div>
-{% endif %}
-
-{% if tool.slug == "protect-pdf" or tool.slug == "unlock-pdf" %}
-<div class="p-4 bg-gray-50 rounded-xl border">
-  <input type="password" name="password" placeholder="Enter password"
-         class="border p-2 rounded w-full">
-</div>
-{% endif %}
-
-{% if tool.slug == "watermark-pdf" %}
-<div class="p-4 bg-gray-50 rounded-xl border space-y-2">
-  <input type="text" name="text" id="wm_text" placeholder="Watermark text"
-         class="border p-2 rounded w-full">
-
-  <div class="flex gap-2">
-    <input type="number" name="x" id="wm_x" placeholder="X" class="border p-2 rounded w-24">
-    <input type="number" name="y" id="wm_y" placeholder="Y" class="border p-2 rounded w-24">
-    <input type="number" name="size" id="wm_size" placeholder="Size" class="border p-2 rounded w-24">
-  </div>
-</div>
-{% endif %}
-
-{% if tool.slug == "sign-pdf" %}
-<div class="p-4 bg-gray-50 rounded-xl border space-y-2">
-  <input type="file" name="signature" class="border p-2 rounded w-full">
-  <input type="text" name="text" placeholder="Signature Name" class="border p-2 rounded w-full">
-</div>
-{% endif %}
-
-<!-- PROCESS BUTTON -->
-<div class="flex justify-end">
-  <button class="bg-violet-600 hover:bg-violet-700 text-white font-semibold px-8 py-3 rounded-xl shadow-lg">
-    Process {{ tool.title }}
-  </button>
-</div>
-
-</form>
-
-<!-- SEO ABOUT -->
-<div class="mt-10 text-sm text-gray-600">
-  <h2 class="font-bold text-lg mb-2">About {{ tool.title }}</h2>
-  {{ tool.desc }} securely online with BlinkPDF without installing software.
-</div>
-
-<!-- RANDOM TOOL SUGGESTIONS -->
-<div class="mt-10">
-  <h2 class="font-bold mb-4 text-xl">Try Other Tools</h2>
-
-  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-    {% for t in random_tools %}
-    <a href="{{ t.url if t.url else url_for('tool_page', slug=t.slug) }}"
-       class="bg-white rounded-xl shadow p-3 text-center">
-      <img src="{{ url_for('static', filename='icons/' + t.icon) }}" class="h-8 mx-auto mb-2">
-      <span class="text-xs font-semibold">{{ t.title }}</span>
-    </a>
-    {% endfor %}
-  </div>
-</div>
-
-<!-- SORT + PREVIEW + LIVE EFFECTS -->
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-
+<!-- PDF.js (for local preview only) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.js"
+        integrity="sha512-eAQb5l0r4aDTZ0xMbJg7zt/OjZDVAZt4u1g3kWhhf+oXK69k3kTKq4vEd3+aR3XqDRqhOYra2b7L95InXTnoVA=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
-const fileInput = document.getElementById("fileInput");
-const dropZone = document.getElementById("dropZone");
-const fileList = document.getElementById("fileList");
-const canvas = document.getElementById("pdf-preview");
-const ctx = canvas.getContext("2d");
-const wmBox = document.getElementById("wm-preview");
+  document.addEventListener('DOMContentLoaded', function () {
+    const root = document.getElementById('tool-root');
+    if (!root) return;
+    const toolSlug = root.dataset.toolSlug;
 
-let filesArray = [];
-let pdfDoc = null;
-let currentAngle = 0;
+    const uploadArea = document.getElementById('upload-area');
+    const fileInput = document.getElementById('file-input');
+    const fileInfo = document.getElementById('file-info');
 
-dropZone.onclick = () => fileInput.click();
+    const previewWrapper = document.getElementById('preview-wrapper');
+    const previewEmpty = document.getElementById('preview-empty-state');
+    const previewContent = document.getElementById('preview-content');
+    const previewThumbnails = document.getElementById('preview-thumbnails');
+    const previewFilename = document.getElementById('preview-filename');
+    const previewPagesCount = document.getElementById('preview-pages-count');
+    const previewSize = document.getElementById('preview-size');
+    const previewResetBtn = document.getElementById('preview-reset-btn');
 
-fileInput.onchange = (e) => {
-  filesArray = [...e.target.files];
-  renderFiles();
-  if (filesArray[0]) loadPreview(filesArray[0]);
-}
+    const form = document.getElementById('tool-form');
+    const hiddenFileInput = document.getElementById('hidden-file-input');
 
-function renderFiles(){
-  fileList.innerHTML="";
-  filesArray.forEach((f,i)=>{
-    const li=document.createElement("li");
-    li.className="bg-gray-100 p-2 rounded flex justify-between";
-    li.innerHTML=`${f.name}<button onclick="removeFile(${i})">✕</button>`;
-    fileList.appendChild(li);
+    const compressionSlider = document.getElementById('compression_level');
+    const compressionLabel = document.getElementById('compression-label');
+
+    const rotationSlider = document.getElementById('rotation-slider');
+    const rotationLabel = document.getElementById('rotation-label');
+    const rotationAngleInput = document.getElementById('rotation_angle_input');
+    const rotateButtons = document.querySelectorAll('.rotate-btn');
+    const rotationResetBtn = document.getElementById('rotation-reset');
+
+    const pagesInput = document.getElementById('pages');
+    const passwordInput = document.getElementById('password');
+    const watermarkInput = document.getElementById('watermark_text');
+    const keepFilenameCheckbox = document.querySelector('input[name="keep_filename"]');
+
+    const hiddenCompressionLevel = document.getElementById('hidden_compression_level');
+    const hiddenPages = document.getElementById('hidden_pages');
+    const hiddenPassword = document.getElementById('hidden_password');
+    const hiddenWatermarkText = document.getElementById('hidden_watermark_text');
+    const hiddenKeepFilename = document.getElementById('hidden_keep_filename');
+
+    let currentFile = null;
+    let currentRotation = 0;
+
+    // --- PDF.js worker config ---
+    if (window['pdfjsLib']) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js';
+    }
+
+    function humanFileSize(bytes) {
+      if (!bytes || isNaN(bytes)) return '0 MB';
+      const mb = bytes / (1024 * 1024);
+      return mb < 1 ? mb.toFixed(2) + ' MB' : mb.toFixed(1) + ' MB';
+    }
+
+    function showPreviewPanel() {
+      previewEmpty.classList.add('hidden');
+      previewContent.classList.remove('hidden');
+    }
+
+    function resetPreview() {
+      previewThumbnails.innerHTML = '';
+      previewEmpty.classList.remove('hidden');
+      previewContent.classList.add('hidden');
+      currentRotation = 0;
+      if (rotationSlider && rotationLabel && rotationAngleInput) {
+        rotationSlider.value = 0;
+        rotationLabel.textContent = '0°';
+        rotationAngleInput.value = 0;
+      }
+    }
+
+    function applyRotationToThumbnails(angle) {
+      const canvases = previewThumbnails.querySelectorAll('canvas');
+      canvases.forEach(cv => {
+        cv.style.transform = 'rotate(' + angle + 'deg)';
+      });
+    }
+
+    function applyWatermarkOverlay(text) {
+      const wrappers = previewThumbnails.querySelectorAll('.thumb-wrapper');
+      wrappers.forEach(w => {
+        let overlay = w.querySelector('.watermark-overlay');
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.className =
+            'watermark-overlay pointer-events-none absolute inset-0 flex items-center justify-center text-[10px] sm:text-xs font-semibold tracking-wide uppercase text-violet-600/40';
+          w.appendChild(overlay);
+        }
+        overlay.textContent = text || '';
+        overlay.style.opacity = text ? '1' : '0';
+      });
+    }
+
+    async function renderPdfPreview(file) {
+      if (!window['pdfjsLib']) return;
+
+      resetPreview();
+      showPreviewPanel();
+
+      previewFilename.textContent = file.name || 'document.pdf';
+      previewSize.textContent = humanFileSize(file.size);
+
+      const uint8 = new Uint8Array(await file.arrayBuffer());
+      let doc;
+      try {
+        doc = await pdfjsLib.getDocument({ data: uint8 }).promise;
+      } catch (e) {
+        console.error('PDF preview error:', e);
+        resetPreview();
+        return;
+      }
+
+      const pageCount = doc.numPages || 0;
+      previewPagesCount.textContent = pageCount + (pageCount === 1 ? ' page' : ' pages');
+
+      const maxPages = Math.min(pageCount, 8);
+      for (let i = 1; i <= maxPages; i++) {
+        const page = await doc.getPage(i);
+        const viewport = page.getViewport({ scale: 0.3 });
+
+        const wrapper = document.createElement('div');
+        wrapper.className =
+          'thumb-wrapper relative bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden flex flex-col';
+
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        canvas.className =
+          'w-full h-auto block bg-slate-100 transition-transform duration-200 origin-center';
+
+        const pageLabel = document.createElement('div');
+        pageLabel.className =
+          'px-1.5 py-1 text-[10px] text-slate-500 border-t border-slate-100 bg-slate-50 text-right';
+        pageLabel.textContent = 'Page ' + i;
+
+        wrapper.appendChild(canvas);
+        wrapper.appendChild(pageLabel);
+        previewThumbnails.appendChild(wrapper);
+
+        const ctx = canvas.getContext('2d');
+        await page.render({ canvasContext: ctx, viewport }).promise;
+      }
+
+      // Apply initial rotation and watermark if present
+      if (toolSlug === 'rotate-pdf') {
+        applyRotationToThumbnails(currentRotation);
+      }
+      if (toolSlug === 'watermark-pdf' && watermarkInput) {
+        applyWatermarkOverlay(watermarkInput.value);
+      }
+    }
+
+    function handleFilesSelected(files) {
+      if (!files || !files.length) return;
+      currentFile = files[0]; // For preview we use the first file only
+
+      if (fileInfo) {
+        fileInfo.classList.remove('hidden');
+        fileInfo.textContent = files.length === 1
+          ? `${currentFile.name} · ${humanFileSize(currentFile.size)}`
+          : `${files.length} files selected · previewing first`;
+      }
+
+      // Copy the file(s) into the real form file input
+      const dt = new DataTransfer();
+      for (let f of files) {
+        dt.items.add(f);
+      }
+      hiddenFileInput.files = dt.files;
+
+      const isPdf = currentFile.type === 'application/pdf' ||
+                    currentFile.name.toLowerCase().endsWith('.pdf');
+      if (isPdf) {
+        renderPdfPreview(currentFile);
+      } else {
+        resetPreview();
+        showPreviewPanel();
+        previewFilename.textContent = currentFile.name;
+        previewSize.textContent = humanFileSize(currentFile.size);
+        previewPagesCount.textContent = 'Preview not available for this file type';
+      }
+    }
+
+    // Upload area click -> trigger input
+    if (uploadArea && fileInput) {
+      uploadArea.addEventListener('click', function () {
+        fileInput.click();
+      });
+
+      uploadArea.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        uploadArea.classList.add('border-violet-400', 'bg-violet-50/40');
+      });
+
+      uploadArea.addEventListener('dragleave', function (e) {
+        e.preventDefault();
+        uploadArea.classList.remove('border-violet-400', 'bg-violet-50/40');
+      });
+
+      uploadArea.addEventListener('drop', function (e) {
+        e.preventDefault();
+        uploadArea.classList.remove('border-violet-400', 'bg-violet-50/40');
+        const files = e.dataTransfer.files;
+        if (files && files.length) {
+          fileInput.files = files;
+          handleFilesSelected(files);
+        }
+      });
+
+      fileInput.addEventListener('change', function (e) {
+        const files = e.target.files;
+        if (files && files.length) {
+          handleFilesSelected(files);
+        }
+      });
+    }
+
+    // Compression label updates
+    if (compressionSlider && compressionLabel) {
+      const updateCompressionLabel = (val) => {
+        let text = 'Balanced';
+        if (val === '1') text = 'High quality';
+        if (val === '3') text = 'Smallest file';
+        compressionLabel.textContent = text;
+      };
+      updateCompressionLabel(compressionSlider.value);
+      compressionSlider.addEventListener('input', function (e) {
+        updateCompressionLabel(e.target.value);
+      });
+    }
+
+    // Rotation logic
+    if (toolSlug === 'rotate-pdf' && rotationSlider && rotationLabel && rotationAngleInput) {
+      const syncRotation = (angle) => {
+        currentRotation = angle;
+        rotationSlider.value = angle;
+        rotationLabel.textContent = angle + '°';
+        rotationAngleInput.value = angle;
+        applyRotationToThumbnails(angle);
+      };
+
+      rotationSlider.addEventListener('input', function (e) {
+        const angle = parseInt(e.target.value, 10) || 0;
+        syncRotation(angle);
+      });
+
+      rotateButtons.forEach((btn) => {
+        btn.addEventListener('click', function () {
+          const dir = parseInt(btn.dataset.direction, 10) || 0;
+          let angle = (currentRotation + dir) % 360;
+          if (angle < 0) angle += 360;
+          // Snap to 0,90,180,270
+          const allowed = [0, 90, 180, 270];
+          angle = allowed.reduce((prev, curr) =>
+            Math.abs(curr - angle) < Math.abs(prev - angle) ? curr : prev
+          );
+          syncRotation(angle);
+        });
+      });
+
+      if (rotationResetBtn) {
+        rotationResetBtn.addEventListener('click', function () {
+          syncRotation(0);
+        });
+      }
+    }
+
+    // Watermark overlay preview
+    if (toolSlug === 'watermark-pdf' && watermarkInput) {
+      watermarkInput.addEventListener('input', function () {
+        applyWatermarkOverlay(watermarkInput.value);
+      });
+    }
+
+    // Reset preview button
+    if (previewResetBtn) {
+      previewResetBtn.addEventListener('click', function () {
+        if (currentFile) {
+          // Re-render the same file
+          const isPdf = currentFile.type === 'application/pdf' ||
+                        currentFile.name.toLowerCase().endsWith('.pdf');
+          if (isPdf) {
+            renderPdfPreview(currentFile);
+          } else {
+            resetPreview();
+            showPreviewPanel();
+            previewFilename.textContent = currentFile.name;
+            previewSize.textContent = humanFileSize(currentFile.size);
+            previewPagesCount.textContent = 'Preview not available for this file type';
+          }
+        } else {
+          resetPreview();
+        }
+      });
+    }
+
+    // Before submit: copy visible advanced controls into hidden fields
+    if (form) {
+      form.addEventListener('submit', function (e) {
+        if (!hiddenFileInput.files || !hiddenFileInput.files.length) {
+          e.preventDefault();
+          alert('Please upload a file first.');
+          return;
+        }
+
+        if (compressionSlider && hiddenCompressionLevel) {
+          hiddenCompressionLevel.value = compressionSlider.value;
+        }
+        if (pagesInput && hiddenPages) {
+          hiddenPages.value = pagesInput.value;
+        }
+        if (passwordInput && hiddenPassword) {
+          hiddenPassword.value = passwordInput.value;
+        }
+        if (watermarkInput && hiddenWatermarkText) {
+          hiddenWatermarkText.value = watermarkInput.value;
+        }
+        if (keepFilenameCheckbox && hiddenKeepFilename) {
+          hiddenKeepFilename.value = keepFilenameCheckbox.checked ? '1' : '0';
+        }
+      });
+    }
   });
-  Sortable.create(fileList,{animation:150});
-}
-
-function removeFile(i){
-  filesArray.splice(i,1);
-  renderFiles();
-}
-
-function loadPreview(file){
-  const reader = new FileReader();
-  reader.onload = function() {
-    const typedarray = new Uint8Array(this.result);
-    pdfjsLib.getDocument(typedarray).promise.then(function(pdf){
-      pdfDoc = pdf;
-      renderPage();
-    });
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-function renderPage(){
-  if(!pdfDoc) return;
-  pdfDoc.getPage(1).then(page=>{
-    const viewport = page.getViewport({ scale: 1, rotation: currentAngle });
-    canvas.height = viewport.height;
-    canvas.width = viewport.width;
-    page.render({canvasContext: ctx, viewport});
-  });
-}
-
-/* LIVE ROTATION */
-const angleInput = document.getElementById("angle");
-if(angleInput){
-  angleInput.onchange = ()=>{
-    currentAngle = parseInt(angleInput.value);
-    renderPage();
-  };
-}
-
-/* LIVE RESIZE / CROP */
-const widthInput = document.getElementById("width");
-const heightInput = document.getElementById("height");
-
-if(widthInput && heightInput){
-  widthInput.oninput = heightInput.oninput = ()=>{
-    canvas.style.width = widthInput.value + "px";
-    canvas.style.height = heightInput.value + "px";
-  }
-}
-
-/* LIVE WATERMARK */
-const wmText = document.getElementById("wm_text");
-const wmX = document.getElementById("wm_x");
-const wmY = document.getElementById("wm_y");
-const wmSize = document.getElementById("wm_size");
-
-if(wmText){
-  wmText.oninput = ()=>{
-    wmBox.style.display="block";
-    wmBox.innerText = wmText.value;
-  }
-  wmX.oninput = ()=> wmBox.style.left = wmX.value+"px";
-  wmY.oninput = ()=> wmBox.style.top = wmY.value+"px";
-  wmSize.oninput = ()=> wmBox.style.fontSize = wmSize.value+"px";
-}
 </script>
-
 {% endblock %}
