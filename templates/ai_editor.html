@@ -168,9 +168,13 @@ document.getElementById("uploadBtn").addEventListener("click", async function(){
 
 async function showPage(n){
 
+  // remember current page
+  currentPage = n;
+  document.getElementById("pageNum").innerText = n;
+
   const page = await pdfDoc.getPage(n);
   const unscaled = page.getViewport({scale:1});
-  const scale = baseWidth/unscaled.width;
+  const scale = baseWidth / unscaled.width;
   currentScale = scale;
 
   const viewport = page.getViewport({scale});
@@ -179,37 +183,179 @@ async function showPage(n){
   canvas.width = viewport.width;
   canvas.height = viewport.height;
 
+  // reset fabric canvas for this page
+  fabricCanvas.clear();
   fabricCanvas.setWidth(viewport.width);
   fabricCanvas.setHeight(viewport.height);
 
-  await page.render({canvasContext:ctx,viewport}).promise;
+  // draw PDF page into the plain canvas
+  await page.render({ canvasContext: ctx, viewport }).promise;
 
+  // use rendered page as non-selectable background
   const bg = canvas.toDataURL();
-  fabric.Image.fromURL(bg,img=>{
-    fabricCanvas.setBackgroundImage(img,fabricCanvas.renderAll.bind(fabricCanvas));
+  fabric.Image.fromURL(bg, img => {
+    img.selectable = false;
+    img.evented = false;
+    img.scaleToWidth(fabricCanvas.width);
+    img.scaleToHeight(fabricCanvas.height);
+    fabricCanvas.setBackgroundImage(
+      img,
+      fabricCanvas.renderAll.bind(fabricCanvas)
+    );
   });
 
+  // extract text items for smart editing
   const text = await page.getTextContent();
 
-  text.items.forEach(t=>{
-    if(!t.str.trim()) return;
+  text.items.forEach((t, idx) => {
+    if (!t.str.trim()) return;
 
-    const tx=pdfjsLib.Util.transform(viewport.transform,t.transform);
-    const x=tx[4];
-    const y=tx[5];
+    // PDF.js transform → canvas coords
+    const tx = pdfjsLib.Util.transform(viewport.transform, t.transform);
+    const x = tx[4];
+    const yBaseline = tx[5];
 
-    const obj = new fabric.Textbox(t.str,{
-      left:x,
-      top:y,
-      fontSize:t.height*scale,
-      fill:"#000"
+    // pdf.js gives height in PDF units; convert to canvas
+    const fontSize = t.height * scale;
+
+    // fabric.Textbox uses top-left, pdf.js y is baseline -> shift up
+    const top = yBaseline - fontSize;
+
+    // width fallback if pdf.js doesn't give t.width
+    const approxWidth = (t.width || (t.str.length * fontSize * 0.6)) * scale;
+
+    // white box that hides the original printed text
+    const eraseBox = new fabric.Rect({
+      left: x,
+      top: top,
+      width: approxWidth + 4,
+      height: fontSize + 4,
+      fill: "#ffffff",
+      selectable: false,
+      evented: false
     });
 
-    obj.pageIndex = n;
-    obj.pdfRect = {x:x/scale,y:y/scale,width:t.width,height:t.height};
+    const obj = new fabric.Textbox(t.str, {
+      left: x,
+      top: top,
+      fontSize: fontSize,
+      fill: "#000",
+      width: approxWidth + 20,
+      backgroundColor: "transparent",
+      splitByGrapheme: true,
+      lockScalingFlip: true
+    });
 
+    // metadata used by real save engine
+    obj.pageIndex = n;                 // 1-based page index
+    obj.pdfRect = {
+      x: x / scale,
+      y: top / scale,
+      width: (t.width || approxWidth / scale),
+      height: t.height
+    };
+    obj.fontSizePdf = fontSize;        // keep original font size
+    obj._rectId = `${n}-${idx}`;       // stable id for this text run
+
+    fabricCanvas.add(eraseBox);
     fabricCanvas.add(obj);
   });
+
+  fabricCanvas.renderAll();
+}
+
+/* when user finishes editing a text box → queue real PDF edit */
+fabricCanvas.on("text:editing:exited", (e) => {
+  const obj = e.target;
+  if (!obj || !obj.pdfRect || obj.pageIndex == null) return;
+
+  // remove any previous edit for same block
+  realEdits = realEdits.filter(
+    ed => !(ed.page === obj.pageIndex && ed.rectId === obj._rectId)
+  );
+
+  realEdits.push({
+    page: obj.pageIndex,                 // 1-based page
+    rectId: obj._rectId,                 // internal id (safe extra)
+    rect: obj.pdfRect,                   // {x,y,width,height} in PDF units
+    newText: obj.text,
+    fontSize: obj.fontSizePdf || obj.fontSize || 12
+  });
+
+  document.getElementById("status").innerText =
+    "✏ Text will be saved in PDF";
+});
+
+
+async function saveFullPDF(){
+
+  if (!window.serverPDF || !realEdits.length) {
+    alert("No edits found");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("filename", window.serverPDF);
+  formData.append("edits", JSON.stringify(realEdits));
+
+  const res = await fetch("/ai/apply-real-edits", { method: "POST", body: formData });
+  const blob = await res.blob();
+
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "BlinkPDF_REAL_EDITED.pdf";
+  a.click();
+}
+
+
+async function rewriteSelectedText(){
+
+  if (!selectedTextObj) {
+    alert("Select text first");
+    return;
+  }
+
+  const originalText = selectedTextObj.text;
+
+  if (!originalText.trim()) {
+    alert("Nothing to rewrite");
+    return;
+  }
+
+  document.getElementById("status").innerText = "🤖 Rewriting...";
+
+  const res = await fetch("/ai/rewrite", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: originalText })
+  });
+
+  const data = await res.json();
+
+  if (data.result) {
+
+    // Update text on canvas
+    selectedTextObj.text = data.result;
+    fabricCanvas.renderAll();
+
+    // de-dupe any previous edit for this block
+    realEdits = realEdits.filter(
+      ed => !(ed.page === selectedTextObj.pageIndex && ed.rectId === selectedTextObj._rectId)
+    );
+
+    // Track for real PDF replacement with font size kept
+    realEdits.push({
+      page: selectedTextObj.pageIndex,
+      rectId: selectedTextObj._rectId,
+      rect: selectedTextObj.pdfRect,
+      newText: data.result,
+      fontSize: selectedTextObj.fontSizePdf || selectedTextObj.fontSize || 12
+    });
+
+    document.getElementById("status").innerText = "✅ AI rewrite applied";
+  } else {
+    alert("Rewrite failed");
+  }
 }
 
 fabricCanvas.on("text:editing:exited",(e)=>{
