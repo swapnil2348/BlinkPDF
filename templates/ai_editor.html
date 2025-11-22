@@ -87,7 +87,7 @@
         <button class="tool-btn" onclick="resetPage()">🧼 Reset Page</button>
 
         <!-- Save -->
-        <button class="tool-btn bg-indigo-600 text-white ml-auto" onclick="saveFullPDF()">💾 Save FULL PDF</button>
+        <button class="bg-violet-600 text-white px-4 py-2 rounded ml-auto hover:bg-violet-700" onclick="saveFullPDF()"> 💾 Save FULL PDF </button>
       </div>
 
       <!-- Page navigation -->
@@ -606,6 +606,56 @@ document.addEventListener("DOMContentLoaded", function(){
   };
 
 });
+
+async function saveFullPDF(){
+
+  if(!pdfDoc){
+    alert("No PDF loaded");
+    return;
+  }
+
+  document.getElementById("status").innerText = "⏳ Building PDF...";
+
+  const newPdf = await PDFLib.PDFDocument.create();
+
+  for(let i = 1; i <= pdfDoc.numPages; i++){
+
+    await showPage(i);
+
+    // small delay to let canvas update
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    const canvasEl = document.getElementById("pdf-canvas");
+
+    const dataUrl = canvasEl.toDataURL("image/png", 1.0);
+    const imageBytes = await fetch(dataUrl).then(res => res.arrayBuffer());
+
+    const png = await newPdf.embedPng(imageBytes);
+
+    const page = newPdf.addPage([
+      canvasEl.width,
+      canvasEl.height
+    ]);
+
+    page.drawImage(png,{
+      x: 0,
+      y: 0,
+      width: page.getWidth(),
+      height: page.getHeight()
+    });
+  }
+
+  const pdfBytes = await newPdf.save();
+
+  const blob = new Blob([pdfBytes], { type: "application/pdf" });
+  const link = document.createElement("a");
+
+  link.href = URL.createObjectURL(blob);
+  link.download = "BlinkPDF_FINAL.pdf";
+  link.click();
+
+  document.getElementById("status").innerText = "✅ PDF saved successfully";
+}
 
 </script>
 
