@@ -4,6 +4,8 @@ import base64
 import tempfile
 import random
 import requests
+import json
+import fitz  # PyMuPDF
 from io import BytesIO
 
 from flask import (
@@ -400,6 +402,75 @@ def ai_real_replace():
     })
 
     return send_file(replaced_file, as_attachment=True)
+    
+@app.route("/ai/apply-real-edits", methods=["POST"])
+def apply_real_edits():
+    """
+    Apply REAL text edits to the original PDF using PyMuPDF.
+    Expects:
+      - filename: the uploaded PDF file name (in UPLOAD_FOLDER)
+      - edits: JSON list of { page, rect: {x0,y0,x1,y1}, newText, fontSize }
+    """
+
+    filename = request.form.get("filename")
+    edits_raw = request.form.get("edits")
+
+    if not filename or not edits_raw:
+        return jsonify({"error": "Missing filename or edits"}), 400
+
+    try:
+        edits = json.loads(edits_raw)
+    except Exception:
+        return jsonify({"error": "Invalid edits JSON"}), 400
+
+    source_path = os.path.join(UPLOAD_FOLDER, filename)
+    if not os.path.exists(source_path):
+        return jsonify({"error": "Source PDF not found"}), 404
+
+    out_name = f"real_edit_{uuid.uuid4().hex}.pdf"
+    out_path = os.path.join(PROCESSED_FOLDER, out_name)
+
+    doc = fitz.open(source_path)
+
+    for edit in edits:
+        try:
+            page_index = int(edit.get("page", 1)) - 1
+            rect_data = edit.get("rect", {})
+            new_text = edit.get("newText", "")
+            font_size = float(edit.get("fontSize", 12))
+
+            if page_index < 0 or page_index >= len(doc):
+                continue
+
+            x0 = float(rect_data.get("x0", 0))
+            y0 = float(rect_data.get("y0", 0))
+            x1 = float(rect_data.get("x1", x0 + 100))
+            y1 = float(rect_data.get("y1", y0 + 30))
+
+            page = doc[page_index]
+            rect = fitz.Rect(x0, y0, x1, y1)
+
+            # 1) Redact old content (remove underlying text)
+            page.add_redact_annot(rect, fill=(1, 1, 1))
+            page.apply_redactions()
+
+            # 2) Insert NEW text into real PDF text layer
+            page.insert_textbox(
+                rect,
+                new_text,
+                fontsize=font_size,
+                fontname="helv",
+                align=0,  # left
+                color=(0, 0, 0),
+            )
+        except Exception as e:
+            print("Edit error:", e)
+            continue
+
+    doc.save(out_path)
+    doc.close()
+
+    return send_file(out_path, as_attachment=True)
     
 @app.route("/ai/upload-pdf", methods=["POST"])
 def ai_upload_pdf():
