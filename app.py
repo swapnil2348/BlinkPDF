@@ -477,7 +477,8 @@ def ai_upload_pdf():
 @app.route('/uploads/<path:filename>')
 def serve_uploads(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
- @app.route('/googlefe495bc7xxxx.html')
+    
+@app.route('/googlefe495bc7xxxx.html')
 def google_verify():
     return send_from_directory(os.path.dirname(os.path.abspath(_file_)), 'googlefe495bc7600f4865.html')  
 
