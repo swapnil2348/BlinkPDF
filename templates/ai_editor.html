@@ -30,17 +30,56 @@
   <h1 class="text-3xl font-bold mb-4">AI PDF Editor (PRO)</h1>
 
   <!-- Upload -->
-  <div class="bg-white p-6 rounded-xl shadow border mb-6">
-    <form onsubmit="event.preventDefault(); loadPDF()" class="flex flex-col sm:flex-row gap-4">
-      <input type="file" id="pdfUpload" accept="application/pdf" class="border p-2 rounded flex-1" required>
-      <button type="button" onclick="loadPDF()" class="bg-violet-600 text-white px-4 py-2 rounded w-full sm:w-auto">
-        Upload & Start
-      </button>
-    </form>
-    <p id="status" class="text-sm mt-2 text-gray-600"></p>
-  </div>
+<div class="bg-white p-6 rounded-xl shadow border mb-6">
 
-  <div class="grid grid-cols-12 gap-4 md:flex-nowrap flex-wrap">
+  <form 
+    action="/ai/real-replace" 
+    method="POST" 
+    enctype="multipart/form-data"
+    class="flex flex-col gap-4"
+  >
+
+    <input 
+      type="file" 
+      name="file"
+      accept="application/pdf"
+      required
+      class="border p-2 rounded"
+    >
+
+    <input
+      type="text"
+      name="find"
+      placeholder="Text to find"
+      required
+      class="border p-2 rounded"
+    >
+
+    <input
+      type="text"
+      name="replace"
+      placeholder="Text to replace with"
+      required
+      class="border p-2 rounded"
+    >
+
+    <button
+      type="submit"
+      class="bg-violet-600 text-white px-6 py-2 rounded hover:bg-violet-700"
+    >
+      Upload & Start AI Replace
+    </button>
+
+  </form>
+
+  <p id="status" class="text-sm mt-2 text-gray-600"></p>
+
+</div>
+
+
+  <p id="status" class="text-sm mt-2 text-gray-600"></p>
+</div>
+
 
     <!-- Thumbnails -->
     <div class="col-span-12 md:col-span-2 bg-white border rounded-xl p-3 overflow-y-auto max-h-[600px]" id="thumbs">
