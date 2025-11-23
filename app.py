@@ -109,120 +109,68 @@ def process_tool(slug):
     if not tool:
         return abort(404)
 
-    if "files" not in request.files:
-        return "No files uploaded", 400
-
+    # ---------------------------
+    # GET FILES
+    # ---------------------------
     files = request.files.getlist("files")
+    if not files or files[0].filename == "":
+        return jsonify({"error": "No files uploaded"}), 400
 
-    if len(files) == 0:
-        return "No files selected", 400
-
-    file_paths = []
-
+    # ---------------------------
+    # SAVE FILES
+    # ---------------------------
+    saved_paths = []
     for file in files:
-        if file.filename == "":
-            continue
-
         filename = secure_filename(f"{uuid.uuid4().hex}_{file.filename}")
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
         file.save(filepath)
-        file_paths.append(filepath)
+        saved_paths.append(filepath)
 
-    # -------------- MERGE PDF ----------------
-    if slug == "merge-pdf":
-        output_path = os.path.join(app.config['OUTPUT_FOLDER'], f"merged_{uuid.uuid4().hex}.pdf")
+    # ---------------------------
+    # READ ADVANCED OPTIONS
+    # ---------------------------
+    options = {}
 
-        writer = PdfWriter()
+    for key, value in request.form.items():
 
-        for path in file_paths:
-            reader = PdfReader(path)
-            for page in reader.pages:
-                writer.add_page(page)
+        # Convert booleans
+        if value.lower() in ["true", "false"]:
+            value = (value.lower() == "true")
 
-        with open(output_path, "wb") as f:
-            writer.write(f)
+        # Convert numbers safely
+        else:
+            try:
+                if "." in value:
+                    value = float(value)
+                else:
+                    value = int(value)
+            except:
+                pass
 
-        return send_file(output_path, as_attachment=True)
+        options[key] = value
 
-    # -------------- SPLIT PDF ----------------
-    if slug == "split-pdf":
-        zip_path = os.path.join(app.config['OUTPUT_FOLDER'], f"split_{uuid.uuid4().hex}.pdf")
+    # ---------------------------
+    # PROCESS USING REAL ENGINE
+    # ---------------------------
+    try:
+        processor = PDFProcessor()
+        output_path = processor.process(
+            tool_slug=slug,
+            input_paths=saved_paths,
+            options=options
+        )
 
-        reader = PdfReader(file_paths[0])
-        writer = PdfWriter()
+        if not output_path or not os.path.exists(output_path):
+            return jsonify({"error": "Processing failed for this tool"}), 500
 
-        for page in reader.pages:
-            writer.add_page(page)
+        return send_file(
+            output_path, 
+            as_attachment=True,
+            download_name=os.path.basename(output_path)
+        )
 
-        with open(zip_path, "wb") as f:
-            writer.write(f)
-
-        return send_file(zip_path, as_attachment=True)
-
-    # -------------- PDF TO JPG ----------------
-    if slug == "pdf-to-jpg":
-        images = []
-        doc = fitz.open(file_paths[0])
-
-        for i in range(len(doc)):
-            page = doc.load_page(i)
-            pix = page.get_pixmap()
-            output = os.path.join(app.config["OUTPUT_FOLDER"], f"{uuid.uuid4().hex}.jpg")
-            pix.save(output)
-            images.append(output)
-
-        return send_file(images[0], as_attachment=True)
-
-    # -------------- JPG TO PDF ----------------
-    if slug == "jpg-to-pdf":
-        output = os.path.join(app.config["OUTPUT_FOLDER"], f"{uuid.uuid4().hex}.pdf")
-
-        images = [Image.open(p).convert("RGB") for p in file_paths]
-        images[0].save(output, save_all=True, append_images=images[1:])
-
-        return send_file(output, as_attachment=True)
-
-    # -------------- ROTATE PDF ----------------
-    if slug == "rotate-pdf":
-        output = os.path.join(app.config["OUTPUT_FOLDER"], f"{uuid.uuid4().hex}.pdf")
-
-        reader = PdfReader(file_paths[0])
-        writer = PdfWriter()
-
-        for page in reader.pages:
-            page.rotate(90)
-            writer.add_page(page)
-
-        with open(output, "wb") as f:
-            writer.write(f)
-
-        return send_file(output, as_attachment=True)
-
-    # -------------- UNLOCK PDF ----------------
-    if slug == "unlock-pdf":
-        output = os.path.join(app.config["OUTPUT_FOLDER"], f"{uuid.uuid4().hex}.pdf")
-
-        reader = PdfReader(file_paths[0])
-        if reader.is_encrypted:
-            reader.decrypt("")
-
-        writer = PdfWriter()
-
-        for page in reader.pages:
-            writer.add_page(page)
-
-        with open(output, "wb") as f:
-            writer.write(f)
-
-        return send_file(output, as_attachment=True)
-
-    # -------------- DEFAULT FALLBACK ----------------
-    return jsonify({
-        "status": "success",
-        "tool": slug,
-        "message": "Uploaded and processing engine connected successfully"
-    })
-
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # ------------------ MAIN ------------------
 
