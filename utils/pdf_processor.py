@@ -63,7 +63,6 @@ class PDFProcessor:
             return self.split_pdf(first, pages)
 
         if slug == "compress-pdf":
-            # slider sends 1/2/3 as strings; map to semantic levels.
             raw = options.get("compression_level", "2")
             level_map = {"1": "high", "2": "medium", "3": "low"}
             level = level_map.get(str(raw), "medium")
@@ -73,7 +72,6 @@ class PDFProcessor:
             return self.optimize_pdf(first)
 
         if slug == "rotate-pdf":
-            # Frontend: rotation_angle (0,90,180,270) – hidden or visible.
             angle_str = (
                 options.get("rotation_angle")
                 or options.get("angle")
@@ -115,79 +113,16 @@ class PDFProcessor:
             return self.repair_pdf(first)
 
         if slug == "organize-pdf":
-            # Support both classic order/delete and "selected_pages" from UI.
             order_spec = options.get("page_order", "")
             delete_spec = options.get("delete_pages", "")
             selected_spec = options.get("selected_pages", "")
             return self.organize_pdf(first, order_spec, delete_spec, selected_spec)
 
-        if slug == "sign-pdf":
-            signature_path = options.get("signature_path")
-            if not signature_path or not os.path.exists(signature_path):
-                raise PDFProcessorError("Signature image not provided or not found.")
-            return self.sign_pdf(first, signature_path)
-
-        if slug == "annotate-pdf":
-            highlight_text = options.get("highlight_text")
-            if not highlight_text:
-                raise PDFProcessorError("highlight_text is required for annotate tool.")
-            return self.annotate_pdf(first, highlight_text)
-
-        if slug == "redact-pdf":
-            redact_text = options.get("redact_text")
-            if not redact_text:
-                raise PDFProcessorError("redact_text is required for redact tool.")
-            return self.redact_pdf(first, redact_text)
-
-        # -------------- PDF <-> Office / Images conversions --------------
-        if slug == "pdf-to-word":
-            return self.pdf_to_word(first)
-
-        if slug == "word-to-pdf":
-            return self.word_to_pdf(first)
-
-        if slug == "pdf-to-image":
-            fmt = (options.get("image_format") or "png").lower()
-            dpi_str = options.get("output_dpi", "150")
-            try:
-                dpi = int(dpi_str)
-            except ValueError:
-                dpi = 150
-            return self.pdf_to_images(first, fmt, dpi)
-
-        if slug == "image-to-pdf":
-            return self.images_to_pdf(input_files)
-
-        if slug == "pdf-to-excel":
-            return self.pdf_to_excel(first)
-
-        if slug == "excel-to-pdf":
-            return self.excel_to_pdf(first)
-
-        if slug == "pdf-to-powerpoint":
-            return self.pdf_to_powerpoint(first)
-
-        if slug == "powerpoint-to-pdf":
-            return self.powerpoint_to_pdf(first)
-
-        # -------------- OCR / text / images ------------------------------
         if slug == "ocr-pdf":
             lang = options.get("ocr_lang", "eng")
             return self.ocr_pdf(first, lang)
 
-        if slug == "extract-text":
-            return self.extract_text(first)
-
-        if slug == "extract-images":
-            return self.extract_images(first)
-
-        # -------------- Page geometry ------------------------------------
-        if slug == "deskew-pdf":
-            return self.deskew_pdf(first)
-
         if slug == "crop-pdf":
-            # PRO++: support BOTH margins and explicit crop box coordinates.
-            # Priority: crop box > margins
             has_box = any(
                 options.get(k) for k in ["crop_x", "crop_y", "crop_w", "crop_h"]
             )
@@ -206,28 +141,6 @@ class PDFProcessor:
                 bottom = float(options.get("crop_bottom", "0") or "0")
                 left = float(options.get("crop_left", "0") or "0")
                 return self.crop_pdf_margins(first, top, right, bottom, left)
-
-        if slug == "resize-pdf":
-            size = (options.get("page_size") or "A4").upper()
-            return self.resize_pdf(first, size)
-
-        if slug == "flatten-pdf":
-            return self.flatten_pdf(first)
-
-        if slug == "metadata-editor":
-            return self.edit_metadata(first, options)
-
-        if slug == "fill-forms":
-            raw = options.get("form_data_json", "{}")
-            try:
-                form_data = json.loads(raw)
-            except json.JSONDecodeError:
-                raise PDFProcessorError("Invalid JSON in form_data_json")
-            return self.fill_forms(first, form_data)
-
-        # -------------- Non-PDF tool: background remover -----------------
-        if slug == "background-remover":
-            return self.remove_background(first)
 
         raise PDFProcessorError(f"Unknown tool slug: {slug}")
 
