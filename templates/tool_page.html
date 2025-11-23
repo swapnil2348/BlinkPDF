@@ -431,7 +431,7 @@
   document.addEventListener('DOMContentLoaded', function () {
     const root = document.getElementById('tool-root');
     if (!root) return;
-    const toolSlug = root.dataset.toolSlug;
+    const toolSlug = root.getAttribute('data-tool-slug');
 
     const uploadArea = document.getElementById('upload-area');
     const fileInput = document.getElementById('file-input');
