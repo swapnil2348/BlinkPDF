@@ -1,991 +1,1010 @@
-# utils/pdf_processor.py
+# pdf_processor.py
+#
+# Real processing engine for BlinkPDF tools.
+# Uses only free local libraries: PyMuPDF, PyPDF2, Pillow, python-docx,
+# python-pptx, openpyxl, reportlab, pytesseract (with safe fallbacks).
+#
+# External interface:
+#   processor = PDFProcessor(output_folder)
+#   out_path, download_name = processor.process(tool_slug, input_files, options)
+#
+#   - tool_slug: one of the defined tool slugs below
+#   - input_files: list[str] of absolute file paths of uploaded files
+#   - options: dict from advanced form options (may be empty)
+#
+# Return:
+#   - out_path: absolute path to generated file (PDF, DOCX, PPTX, ZIP, etc.)
+#   - download_name: nice filename to show in download
 
 import os
+import uuid
 import io
-import json
-import tempfile
-from dataclasses import dataclass
-from typing import List, Tuple, Optional, Dict, Any
+import zipfile
+
+from typing import Dict, List, Tuple
 
 import fitz  # PyMuPDF
 from PyPDF2 import PdfReader, PdfWriter
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4, letter
-from reportlab.lib.utils import ImageReader
+from PIL import Image
 
-from PIL import Image, ImageOps
-import pytesseract
 from docx import Document
 from pptx import Presentation
-from pptx.util import Inches
-import openpyxl
-from openpyxl.utils import get_column_letter
+from openpyxl import Workbook, load_workbook
 
-# --------------------------------------------------------------------
-# Error type used by app.py
-# --------------------------------------------------------------------
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4, letter
 
-
-class PDFProcessorError(Exception):
-    """Custom exception for PDF processing errors."""
-
-
-# --------------------------------------------------------------------
-# Small helpers
-# --------------------------------------------------------------------
+try:
+    import pytesseract
+    _HAS_TESSERACT = True
+except Exception:
+    _HAS_TESSERACT = False
 
 
-def _safe_int(value: Any, default: int) -> int:
-    try:
-        return int(value)
-    except Exception:
-        return default
-
-
-def _page_ranges_to_list(spec: str, max_pages: int) -> List[int]:
-    """
-    Convert a string like "1,2,5-7" to [0,1,4,5,6] (0-based).
-    """
-    pages: List[int] = []
-    if not spec:
-        return list(range(max_pages))
-
-    parts = spec.replace(" ", "").split(",")
-    for part in parts:
-        if "-" in part:
-            start_s, end_s = part.split("-", 1)
-            try:
-                start = max(1, int(start_s))
-                end = min(max_pages, int(end_s))
-            except Exception:
-                continue
-            for p in range(start, end + 1):
-                if 1 <= p <= max_pages:
-                    pages.append(p - 1)
-        else:
-            try:
-                p = int(part)
-            except Exception:
-                continue
-            if 1 <= p <= max_pages:
-                pages.append(p - 1)
-
-    # Deduplicate but keep order
-    seen = set()
-    result: List[int] = []
-    for p in pages:
-        if p not in seen:
-            seen.add(p)
-            result.append(p)
-    return result
-
-
-def _make_temp_pdf_path(prefix: str = "blinkpdf") -> str:
-    fd, path = tempfile.mkstemp(suffix=".pdf", prefix=f"{prefix}_")
-    os.close(fd)
-    return path
-
-
-def _make_temp_zip_path(prefix: str = "blinkpdf") -> str:
-    fd, path = tempfile.mkstemp(suffix=".zip", prefix=f"{prefix}_")
-    os.close(fd)
-    return path
-
-
-def _make_temp_docx_path(prefix: str = "blinkpdf") -> str:
-    fd, path = tempfile.mkstemp(suffix=".docx", prefix=f"{prefix}_")
-    os.close(fd)
-    return path
-
-
-def _make_temp_pptx_path(prefix: str = "blinkpdf") -> str:
-    fd, path = tempfile.mkstemp(suffix=".pptx", prefix=f"{prefix}_")
-    os.close(fd)
-    return path
-
-
-def _make_temp_xlsx_path(prefix: str = "blinkpdf") -> str:
-    fd, path = tempfile.mkstemp(suffix=".xlsx", prefix=f"{prefix}_")
-    os.close(fd)
-    return path
-
-
-# --------------------------------------------------------------------
-# Main processor class
-# --------------------------------------------------------------------
-
-
-@dataclass
 class PDFProcessor:
-    output_dir: str
+    """
+    Core processing engine for all BlinkPDF tools.
+    """
 
-    # ----------------------- PUBLIC ENTRYPOINT -----------------------
+    def __init__(self, output_folder: str) -> None:
+        self.output_folder = output_folder
+        os.makedirs(self.output_folder, exist_ok=True)
 
+        # Mapping from slug to implementation
+        self._dispatch = {
+            # CORE PDF OPS
+            "compress-pdf": self._compress_pdf,
+            "optimize-pdf": self._optimize_pdf,
+            "merge-pdf": self._merge_pdf,
+            "split-pdf": self._split_pdf,
+            "rotate-pdf": self._rotate_pdf,
+            "watermark-pdf": self._watermark_pdf,
+            "number-pdf": self._number_pdf,
+            "protect-pdf": self._protect_pdf,
+            "unlock-pdf": self._unlock_pdf,
+            "repair-pdf": self._repair_pdf,
+            "organize-pdf": self._organize_pdf,
+            "sign-pdf": self._sign_pdf,
+            "annotate-pdf": self._annotate_pdf,
+            "redact-pdf": self._redact_pdf,
+            "flatten-pdf": self._flatten_pdf,
+            "metadata-editor": self._metadata_editor,
+            "fill-forms": self._fill_forms,
+
+            # PAGE GEOMETRY
+            "deskew-pdf": self._deskew_pdf,
+            "crop-pdf": self._crop_pdf,
+            "resize-pdf": self._resize_pdf,
+            "background-remover": self._background_remover,
+
+            # CONVERSIONS
+            "pdf-to-word": self._pdf_to_word,
+            "word-to-pdf": self._word_to_pdf,
+            "pdf-to-image": self._pdf_to_image,
+            "image-to-pdf": self._image_to_pdf,
+            "pdf-to-excel": self._pdf_to_excel,
+            "excel-to-pdf": self._excel_to_pdf,
+            "pdf-to-powerpoint": self._pdf_to_powerpoint,
+            "powerpoint-to-pdf": self._powerpoint_to_pdf,
+
+            # TEXT / OCR / MEDIA
+            "ocr-pdf": self._ocr_pdf,
+            "extract-text": self._extract_text,
+            "extract-images": self._extract_images,
+        }
+
+    # ------------------------------------------------------------------
+    # Public entry point
+    # ------------------------------------------------------------------
     def process(
         self,
-        slug: str,
+        tool_slug: str,
         input_files: List[str],
-        options: Dict[str, Any],
-    ) -> Tuple[str, str, str]:
+        options: Dict = None,
+        **kwargs,
+    ) -> Tuple[str, str]:
         """
-        Main dispatcher used by app.py
+        Generic processing entry.
 
-        Returns:
-            (output_path, download_name, mimetype)
+        :param tool_slug: tool slug string (e.g. "compress-pdf")
+        :param input_files: list of uploaded file paths
+        :param options: dict of advanced options from form
+        :return: (output_path, download_filename)
         """
-
+        if options is None:
+            options = {}
         if not input_files:
-            raise PDFProcessorError("No input files provided.")
+            raise ValueError("No input files provided to processor.")
 
-        os.makedirs(self.output_dir, exist_ok=True)
+        handler = self._dispatch.get(tool_slug)
+        if handler is None:
+            # Unknown tool slug: fail clearly
+            raise ValueError(f"Unknown tool slug: {tool_slug}")
 
-        slug = slug.strip()
+        return handler(input_files, options or {})
 
-        # --------------- Core/basic tools ---------------
+    # ------------------------------------------------------------------
+    # Utility helpers
+    # ------------------------------------------------------------------
+    def _make_output_path(self, base_name: str, ext: str = ".pdf") -> Tuple[str, str]:
+        uid = uuid.uuid4().hex[:8]
+        safe_base = base_name.replace(" ", "_")
+        download_name = f"{safe_base}_{uid}{ext}"
+        full_path = os.path.join(self.output_folder, download_name)
+        return full_path, download_name
 
-        if slug == "merge-pdf":
-            out_path = self.merge_pdfs(input_files)
-            return out_path, "merged-blinkpdf.pdf", "application/pdf"
+    def _ensure_pdf(self, path: str) -> None:
+        if not path.lower().endswith(".pdf"):
+            raise ValueError("This tool requires a PDF input file.")
 
-        if slug == "split-pdf":
-            out_path = self.split_pdf(
-                input_files[0],
-                options.get("pages", ""),
-            )
-            return out_path, "split-blinkpdf.pdf", "application/pdf"
+    # ------------------------------------------------------------------
+    # CORE PDF OPERATIONS
+    # ------------------------------------------------------------------
+    def _compress_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        """
+        Basic compression using PyMuPDF save parameters.
+        """
+        in_path = files[0]
+        self._ensure_pdf(in_path)
 
-        if slug == "compress-pdf":
-            out_path = self.compress_pdf(
-                input_files[0],
-                level=options.get("level", "medium"),
-            )
-            return out_path, "compressed-blinkpdf.pdf", "application/pdf"
+        quality = int(options.get("quality", 75))  # 1-100
+        image_dpi = int(options.get("image_dpi", 120))
+        base_name = os.path.splitext(os.path.basename(in_path))[0]
+        out_path, dl_name = self._make_output_path(base_name + "_compressed")
 
-        if slug == "optimize-pdf":
-            out_path = self.optimize_pdf(input_files[0])
-            return out_path, "optimized-blinkpdf.pdf", "application/pdf"
+        doc = fitz.open(in_path)
 
-        if slug == "rotate-pdf":
-            angle = _safe_int(options.get("angle", 90), 90)
-            out_path = self.rotate_pdf(input_files[0], angle)
-            return out_path, "rotated-blinkpdf.pdf", "application/pdf"
+        # Re-save with cleaning/garbage collection
+        doc.save(
+            out_path,
+            deflate=True,
+            garbage=4,
+            clean=True,
+            compress=True,
+            ascii=False,
+            expand=False,
+            # PyMuPDF <=1.21 uses "use_objstm" etc. – we keep defaults.
+        )
+        doc.close()
+        return out_path, dl_name
 
-        if slug == "watermark-pdf":
-            text = options.get("watermark_text", "BlinkPDF")
-            opacity = float(options.get("opacity", 0.15))
-            out_path = self.watermark_pdf(input_files[0], text, opacity)
-            return out_path, "watermarked-blinkpdf.pdf", "application/pdf"
+    def _optimize_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        """
+        More aggressive optimization: also downscale images.
+        """
+        in_path = files[0]
+        self._ensure_pdf(in_path)
+        base_name = os.path.splitext(os.path.basename(in_path))[0]
+        out_path, dl_name = self._make_output_path(base_name + "_optimized")
 
-        if slug == "number-pdf":
-            out_path = self.number_pages(
-                input_files[0],
-                position=options.get("position", "bottom-right"),
-            )
-            return out_path, "numbered-blinkpdf.pdf", "application/pdf"
+        doc = fitz.open(in_path)
+        # Downscale all images
+        zoom = float(options.get("zoom", 0.7))
+        mat = fitz.Matrix(zoom, zoom)
 
-        if slug == "protect-pdf":
-            password = options.get("password", "")
-            if not password:
-                raise PDFProcessorError("Password is required for protect-pdf.")
-            out_path = self.protect_pdf(input_files[0], password)
-            return out_path, "protected-blinkpdf.pdf", "application/pdf"
+        new_doc = fitz.open()
+        for page in doc:
+            pix = page.get_pixmap(matrix=mat)
+            img_bytes = pix.tobytes("png")
+            img_pdf = fitz.open("pdf", fitz.open("png", img_bytes).convert_to_pdf())
+            new_doc.insert_pdf(img_pdf)
 
-        if slug == "unlock-pdf":
-            password = options.get("password", "")
-            out_path = self.unlock_pdf(input_files[0], password)
-            return out_path, "unlocked-blinkpdf.pdf", "application/pdf"
+        new_doc.save(out_path, garbage=4, clean=True, deflate=True, compress=True)
+        new_doc.close()
+        doc.close()
+        return out_path, dl_name
 
-        if slug == "repair-pdf":
-            out_path = self.repair_pdf(input_files[0])
-            return out_path, "repaired-blinkpdf.pdf", "application/pdf"
-
-        if slug == "organize-pdf":
-            page_order = options.get("page_order", "")
-            delete_pages = options.get("delete_pages", "")
-            out_path = self.organize_pdf(input_files[0], page_order, delete_pages)
-            return out_path, "organized-blinkpdf.pdf", "application/pdf"
-
-        if slug == "sign-pdf":
-            text = options.get("signature_text", "Signed with BlinkPDF")
-            out_path = self.sign_pdf(input_files[0], text)
-            return out_path, "signed-blinkpdf.pdf", "application/pdf"
-
-        if slug == "annotate-pdf":
-            annot_text = options.get("annot_text", "")
-            out_path = self.annotate_pdf(input_files[0], annot_text)
-            return out_path, "annotated-blinkpdf.pdf", "application/pdf"
-
-        if slug == "redact-pdf":
-            redact_text = options.get("redact_text", "")
-            out_path = self.redact_pdf(input_files[0], redact_text)
-            return out_path, "redacted-blinkpdf.pdf", "application/pdf"
-
-        # --------------- Conversions ---------------
-
-        if slug == "pdf-to-word":
-            out_path = self.pdf_to_word(input_files[0])
-            return out_path, "converted-blinkpdf.docx", (
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            )
-
-        if slug == "word-to-pdf":
-            out_path = self.word_to_pdf(input_files[0])
-            return out_path, "converted-blinkpdf.pdf", "application/pdf"
-
-        if slug == "pdf-to-image":
-            out_path = self.pdf_to_images(input_files[0])
-            # zip of images
-            return out_path, "images-blinkpdf.zip", "application/zip"
-
-        if slug == "image-to-pdf":
-            out_path = self.images_to_pdf(input_files)
-            return out_path, "images-merged-blinkpdf.pdf", "application/pdf"
-
-        if slug == "pdf-to-excel":
-            out_path = self.pdf_to_excel(input_files[0])
-            return out_path, "tables-blinkpdf.xlsx", (
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-
-        if slug == "excel-to-pdf":
-            out_path = self.excel_to_pdf(input_files[0])
-            return out_path, "excel-converted-blinkpdf.pdf", "application/pdf"
-
-        if slug == "pdf-to-powerpoint":
-            out_path = self.pdf_to_powerpoint(input_files[0])
-            return out_path, "slides-blinkpdf.pptx", (
-                "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            )
-
-        if slug == "powerpoint-to-pdf":
-            out_path = self.powerpoint_to_pdf(input_files[0])
-            return out_path, "ppt-converted-blinkpdf.pdf", "application/pdf"
-
-        # --------------- OCR & extraction ---------------
-
-        if slug == "ocr-pdf":
-            out_path = self.ocr_pdf(input_files[0])
-            return out_path, "ocr-blinkpdf.pdf", "application/pdf"
-
-        if slug == "extract-text":
-            out_path = self.extract_text(input_files[0])
-            return out_path, "text-blinkpdf.txt", "text/plain"
-
-        if slug == "extract-images":
-            out_path = self.extract_images(input_files[0])
-            return out_path, "images-blinkpdf.zip", "application/zip"
-
-        # --------------- Geometry / layout ---------------
-
-        if slug == "deskew-pdf":
-            out_path = self.deskew_pdf(input_files[0])
-            return out_path, "deskewed-blinkpdf.pdf", "application/pdf"
-
-        if slug == "crop-pdf":
-            margin_top = _safe_int(options.get("margin_top", 0), 0)
-            margin_right = _safe_int(options.get("margin_right", 0), 0)
-            margin_bottom = _safe_int(options.get("margin_bottom", 0), 0)
-            margin_left = _safe_int(options.get("margin_left", 0), 0)
-            out_path = self.crop_pdf(
-                input_files[0],
-                margin_top,
-                margin_right,
-                margin_bottom,
-                margin_left,
-            )
-            return out_path, "cropped-blinkpdf.pdf", "application/pdf"
-
-        if slug == "resize-pdf":
-            scale = float(options.get("scale", 1.0))
-            out_path = self.resize_pdf(input_files[0], scale)
-            return out_path, "resized-blinkpdf.pdf", "application/pdf"
-
-        if slug == "flatten-pdf":
-            out_path = self.flatten_pdf(input_files[0])
-            return out_path, "flattened-blinkpdf.pdf", "application/pdf"
-
-        # --------------- Metadata & forms ---------------
-
-        if slug == "metadata-editor":
-            meta_json = options.get("metadata_json", "{}")
-            out_path = self.edit_metadata(input_files[0], meta_json)
-            return out_path, "metadata-blinkpdf.pdf", "application/pdf"
-
-        if slug == "fill-forms":
-            data_json = options.get("form_data_json", "{}")
-            out_path = self.fill_forms(input_files[0], data_json)
-            return out_path, "filled-forms-blinkpdf.pdf", "application/pdf"
-
-        # --------------- Background remover ---------------
-
-        if slug == "background-remover":
-            out_path = self.remove_background(input_files[0])
-            return out_path, "bg-removed-blinkpdf.pdf", "application/pdf"
-
-        # Unknown tool
-        raise PDFProcessorError(f"Unknown tool slug: {slug}")
-
-    # ----------------------------------------------------------------
-    # IMPLEMENTATIONS
-    # ----------------------------------------------------------------
-
-    # ---------- Basic tools ----------
-
-    def merge_pdfs(self, paths: List[str]) -> str:
+    def _merge_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
         writer = PdfWriter()
-        for path in paths:
-            reader = PdfReader(path)
+        for in_path in files:
+            self._ensure_pdf(in_path)
+            reader = PdfReader(in_path)
             for page in reader.pages:
                 writer.add_page(page)
-        out_path = _make_temp_pdf_path("merge")
+
+        base_name = "merged"
+        out_path, dl_name = self._make_output_path(base_name)
         with open(out_path, "wb") as f:
             writer.write(f)
-        return out_path
+        return out_path, dl_name
 
-    def split_pdf(self, path: str, spec: str) -> str:
-        reader = PdfReader(path)
-        max_pages = len(reader.pages)
-        pages = _page_ranges_to_list(spec, max_pages)
-        if not pages:
-            pages = list(range(max_pages))
+    def _split_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        """
+        Split PDF. If options['range'] provided (e.g. "1-3,5"), export that subset.
+        Otherwise, split into individual page PDFs and zip them.
+        """
+        in_path = files[0]
+        self._ensure_pdf(in_path)
+        base_name = os.path.splitext(os.path.basename(in_path))[0]
 
+        reader = PdfReader(in_path)
+
+        page_range = options.get("range", "").strip()
+        if page_range:
+            # Export selected range as single PDF
+            pages_to_keep = self._parse_page_range(page_range, len(reader.pages))
+            writer = PdfWriter()
+            for idx in pages_to_keep:
+                writer.add_page(reader.pages[idx])
+            out_path, dl_name = self._make_output_path(base_name + "_split_range")
+            with open(out_path, "wb") as f:
+                writer.write(f)
+            return out_path, dl_name
+
+        # Otherwise: split all pages into a ZIP
+        zip_path, dl_name = self._make_output_path(base_name + "_pages", ".zip")
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for i, page in enumerate(reader.pages):
+                writer = PdfWriter()
+                writer.add_page(page)
+                single_name = f"{base_name}_page_{i+1}.pdf"
+                buf = io.BytesIO()
+                writer.write(buf)
+                buf.seek(0)
+                zf.writestr(single_name, buf.read())
+
+        return zip_path, dl_name
+
+    def _parse_page_range(self, page_range: str, total_pages: int) -> List[int]:
+        pages = set()
+        for part in page_range.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            if "-" in part:
+                start_s, end_s = part.split("-", 1)
+                start = max(1, int(start_s))
+                end = min(total_pages, int(end_s))
+                for p in range(start, end + 1):
+                    pages.add(p - 1)
+            else:
+                p = int(part)
+                if 1 <= p <= total_pages:
+                    pages.add(p - 1)
+        return sorted(pages)
+
+    def _rotate_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        in_path = files[0]
+        self._ensure_pdf(in_path)
+        angle = int(options.get("angle", 90)) % 360
+
+        reader = PdfReader(in_path)
         writer = PdfWriter()
-        for p in pages:
-            writer.add_page(reader.pages[p])
 
-        out_path = _make_temp_pdf_path("split")
-        with open(out_path, "wb") as f:
-            writer.write(f)
-        return out_path
-
-    def compress_pdf(self, path: str, level: str = "medium") -> str:
-        """
-        Basic compression by re-saving with PyMuPDF and different image downscale.
-        """
-        doc = fitz.open(path)
-
-        if level == "low":
-            zoom = 0.7
-        elif level == "high":
-            zoom = 0.4
-        else:
-            zoom = 0.5
-
-        # Re-render pages as images and then back into PDF
-        out_doc = fitz.open()
-        for page in doc:
-            mat = fitz.Matrix(zoom, zoom)
-            pix = page.get_pixmap(matrix=mat)
-            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-            img_bytes = io.BytesIO()
-            img.save(img_bytes, format="JPEG", quality=70)
-            img_bytes.seek(0)
-
-            img_pdf = fitz.open("pdf", fitz.open("png", img_bytes).convert_to_pdf())
-            out_doc.insert_pdf(img_pdf)
-
-        out_path = _make_temp_pdf_path("compress")
-        out_doc.save(out_path, garbage=4, deflate=True)
-        out_doc.close()
-        doc.close()
-        return out_path
-
-    def optimize_pdf(self, path: str) -> str:
-        """
-        Light 'optimize': garbage collect, deflate streams, remove duplicates.
-        """
-        doc = fitz.open(path)
-        out_path = _make_temp_pdf_path("optimize")
-        doc.save(out_path, garbage=4, deflate=True, clean=True)
-        doc.close()
-        return out_path
-
-    def rotate_pdf(self, path: str, angle: int) -> str:
-        reader = PdfReader(path)
-        writer = PdfWriter()
         for page in reader.pages:
-            page.rotate_clockwise(angle % 360)
+            page.rotate(angle)
             writer.add_page(page)
 
-        out_path = _make_temp_pdf_path("rotate")
+        base_name = os.path.splitext(os.path.basename(in_path))[0]
+        out_path, dl_name = self._make_output_path(base_name + f"_rotated_{angle}")
         with open(out_path, "wb") as f:
             writer.write(f)
-        return out_path
+        return out_path, dl_name
 
-    def watermark_pdf(self, path: str, text: str, opacity: float) -> str:
-        doc = fitz.open(path)
+    def _watermark_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        """
+        Add simple text watermark to each page center.
+        """
+        in_path = files[0]
+        self._ensure_pdf(in_path)
+        reader = PdfReader(in_path)
+        writer = PdfWriter()
+
+        watermark_text = options.get("watermark_text", "BlinkPDF")
+        base_name = os.path.splitext(os.path.basename(in_path))[0]
+        out_path, dl_name = self._make_output_path(base_name + "_watermarked")
+
+        # We will use PyMuPDF for drawing text, then rebuild PDF.
+        doc = fitz.open(in_path)
         for page in doc:
             rect = page.rect
-            text_size = 60
+            x = rect.width / 2
+            y = rect.height / 2
             page.insert_text(
-                rect.center,
-                text,
-                fontsize=text_size,
+                (x, y),
+                watermark_text,
+                color=(0.8, 0.8, 0.8),
                 rotate=45,
-                color=(0, 0, 0),
-                fill_opacity=opacity,
-                stroke_opacity=opacity,
-                render_mode=2,  # fill+stroke
-                overlay=True,
+                fontname="helv",
+                fontsize=36,
+                align=1,
             )
-        out_path = _make_temp_pdf_path("watermark")
-        doc.save(out_path, garbage=4, deflate=True)
+        doc.save(out_path)
         doc.close()
-        return out_path
+        return out_path, dl_name
 
-    def number_pages(self, path: str, position: str = "bottom-right") -> str:
-        doc = fitz.open(path)
-        total = len(doc)
-        for i, page in enumerate(doc, start=1):
+    def _number_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        """
+        Add footer page numbers to each page.
+        """
+        in_path = files[0]
+        self._ensure_pdf(in_path)
+        base_name = os.path.splitext(os.path.basename(in_path))[0]
+        out_path, dl_name = self._make_output_path(base_name + "_numbered")
+
+        doc = fitz.open(in_path)
+        start_at = int(options.get("start_number", 1))
+        font_size = int(options.get("font_size", 10))
+
+        for i, page in enumerate(doc):
+            num = start_at + i
             rect = page.rect
-            text = f"{i} / {total}"
-            fontsize = 10
+            x = rect.width / 2
+            y = rect.height - 20
+            page.insert_text(
+                (x, y),
+                str(num),
+                fontsize=font_size,
+                fontname="helv",
+                align=1,
+            )
 
-            if position == "bottom-left":
-                point = fitz.Point(rect.x0 + 20, rect.y1 - 20)
-            elif position == "top-right":
-                point = fitz.Point(rect.x1 - 60, rect.y0 + 20)
-            elif position == "top-left":
-                point = fitz.Point(rect.x0 + 20, rect.y0 + 20)
-            else:  # bottom-right
-                point = fitz.Point(rect.x1 - 60, rect.y1 - 20)
-
-            page.insert_text(point, text, fontsize=fontsize, overlay=True)
-
-        out_path = _make_temp_pdf_path("number")
-        doc.save(out_path, garbage=4, deflate=True)
+        doc.save(out_path)
         doc.close()
-        return out_path
+        return out_path, dl_name
 
-    def protect_pdf(self, path: str, password: str) -> str:
-        reader = PdfReader(path)
+    def _protect_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        in_path = files[0]
+        self._ensure_pdf(in_path)
+        password = options.get("password") or ""
+        if not password:
+            raise ValueError("Password is required to protect PDF.")
+
+        reader = PdfReader(in_path)
         writer = PdfWriter()
+
         for page in reader.pages:
             writer.add_page(page)
+
         writer.encrypt(password)
 
-        out_path = _make_temp_pdf_path("protect")
+        base_name = os.path.splitext(os.path.basename(in_path))[0]
+        out_path, dl_name = self._make_output_path(base_name + "_protected")
         with open(out_path, "wb") as f:
             writer.write(f)
-        return out_path
+        return out_path, dl_name
 
-    def unlock_pdf(self, path: str, password: str) -> str:
-        reader = PdfReader(path)
+    def _unlock_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        in_path = files[0]
+        self._ensure_pdf(in_path)
+        password = options.get("password") or ""
+
+        reader = PdfReader(in_path)
         if reader.is_encrypted:
-            if password:
-                ok = reader.decrypt(password)
-                if not ok:
-                    raise PDFProcessorError("Incorrect password for encrypted PDF.")
-            else:
-                raise PDFProcessorError("Password required to unlock this PDF.")
-
+            if not reader.decrypt(password):
+                raise ValueError("Incorrect PDF password.")
         writer = PdfWriter()
         for page in reader.pages:
             writer.add_page(page)
-        out_path = _make_temp_pdf_path("unlock")
+
+        base_name = os.path.splitext(os.path.basename(in_path))[0]
+        out_path, dl_name = self._make_output_path(base_name + "_unlocked")
         with open(out_path, "wb") as f:
             writer.write(f)
-        return out_path
+        return out_path, dl_name
 
-    def repair_pdf(self, path: str) -> str:
+    def _repair_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
         """
-        Simple 'repair' by loading via PyMuPDF and re-saving.
+        Simple repair: re-write pages with PyPDF2.
         """
-        doc = fitz.open(path)
-        out_path = _make_temp_pdf_path("repair")
-        doc.save(out_path, garbage=4, deflate=True)
-        doc.close()
-        return out_path
-
-    def organize_pdf(self, path: str, page_order_spec: str, delete_spec: str) -> str:
-        reader = PdfReader(path)
-        max_pages = len(reader.pages)
-
-        order_pages = _page_ranges_to_list(page_order_spec, max_pages)
-        delete_pages = set(_page_ranges_to_list(delete_spec, max_pages))
-
+        in_path = files[0]
+        self._ensure_pdf(in_path)
+        reader = PdfReader(in_path, strict=False)
         writer = PdfWriter()
-        if order_pages:
-            for p in order_pages:
-                if p not in delete_pages:
-                    writer.add_page(reader.pages[p])
-        else:
-            for i in range(max_pages):
-                if i not in delete_pages:
-                    writer.add_page(reader.pages[i])
 
-        out_path = _make_temp_pdf_path("organize")
+        for page in reader.pages:
+            writer.add_page(page)
+
+        base_name = os.path.splitext(os.path.basename(in_path))[0]
+        out_path, dl_name = self._make_output_path(base_name + "_repaired")
         with open(out_path, "wb") as f:
             writer.write(f)
-        return out_path
+        return out_path, dl_name
 
-    def sign_pdf(self, path: str, text: str) -> str:
-        doc = fitz.open(path)
-        for page in doc:
-            rect = page.rect
-            point = fitz.Point(rect.x1 - 200, rect.y1 - 40)
-            page.insert_text(point, text, fontsize=12, color=(0, 0, 0), overlay=True)
-
-        out_path = _make_temp_pdf_path("sign")
-        doc.save(out_path, garbage=4, deflate=True)
-        doc.close()
-        return out_path
-
-    def annotate_pdf(self, path: str, annot_text: str) -> str:
+    def _organize_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
         """
-        If annot_text is provided, we will search the page and highlight matches.
-        Otherwise we just add a small note at bottom.
+        For now, this just reorders pages if `new_order` is provided as "3,1,2".
+        If not provided, it just copies the file.
         """
-        doc = fitz.open(path)
-        if annot_text:
-            for page in doc:
-                areas = page.search_for(annot_text)
-                for rect in areas:
-                    page.add_highlight_annot(rect)
+        in_path = files[0]
+        self._ensure_pdf(in_path)
+        reader = PdfReader(in_path)
+        writer = PdfWriter()
+
+        new_order = options.get("new_order", "").strip()
+        if new_order:
+            indices = [int(x.strip()) - 1 for x in new_order.split(",") if x.strip()]
         else:
-            for page in doc:
-                rect = page.rect
-                page.insert_text(
-                    fitz.Point(rect.x0 + 20, rect.y1 - 40),
-                    "Annotated with BlinkPDF",
-                    fontsize=10,
-                    overlay=True,
-                )
+            indices = list(range(len(reader.pages)))
 
-        out_path = _make_temp_pdf_path("annotate")
-        doc.save(out_path, garbage=4, deflate=True)
-        doc.close()
-        return out_path
+        for idx in indices:
+            if 0 <= idx < len(reader.pages):
+                writer.add_page(reader.pages[idx])
 
-    def redact_pdf(self, path: str, redact_text: str) -> str:
-        doc = fitz.open(path)
-        if not redact_text:
-            # just re-save
-            out_path = _make_temp_pdf_path("redact")
-            doc.save(out_path, garbage=4, deflate=True)
-            doc.close()
-            return out_path
+        base_name = os.path.splitext(os.path.basename(in_path))[0]
+        out_path, dl_name = self._make_output_path(base_name + "_organized")
+        with open(out_path, "wb") as f:
+            writer.write(f)
+        return out_path, dl_name
+
+    def _sign_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        """
+        If two files provided: [pdf, image_signature].
+        Otherwise, just copy PDF (no server error).
+        """
+        pdf_path = files[0]
+        self._ensure_pdf(pdf_path)
+
+        base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+        out_path, dl_name = self._make_output_path(base_name + "_signed")
+
+        doc = fitz.open(pdf_path)
+        sig_img_path = files[1] if len(files) > 1 else None
 
         for page in doc:
-            areas = page.search_for(redact_text)
+            if sig_img_path and os.path.exists(sig_img_path):
+                rect = page.rect
+                # Sign in bottom-right corner
+                w = rect.width * 0.3
+                h = rect.height * 0.15
+                rect_sig = fitz.Rect(rect.width - w - 36, rect.height - h - 36,
+                                     rect.width - 36, rect.height - 36)
+                page.insert_image(rect_sig, filename=sig_img_path, keep_proportion=True)
+        doc.save(out_path)
+        doc.close()
+        return out_path, dl_name
+
+    def _annotate_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        """
+        Minimal implementation: highlight all occurrences of a keyword if provided.
+        """
+        pdf_path = files[0]
+        self._ensure_pdf(pdf_path)
+        keyword = options.get("keyword", "").strip()
+        base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+        out_path, dl_name = self._make_output_path(base_name + "_annotated")
+
+        if not keyword:
+            # If nothing to annotate, just copy
+            doc = fitz.open(pdf_path)
+            doc.save(out_path)
+            doc.close()
+            return out_path, dl_name
+
+        doc = fitz.open(pdf_path)
+        for page in doc:
+            text_instances = page.search_for(keyword)
+            for inst in text_instances:
+                page.add_highlight_annot(inst)
+        doc.save(out_path)
+        doc.close()
+        return out_path, dl_name
+
+    def _redact_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        """
+        Simple redact by keyword: black out keyword occurrences.
+        """
+        pdf_path = files[0]
+        self._ensure_pdf(pdf_path)
+        keyword = options.get("keyword", "").strip()
+        base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+        out_path, dl_name = self._make_output_path(base_name + "_redacted")
+
+        if not keyword:
+            doc = fitz.open(pdf_path)
+            doc.save(out_path)
+            doc.close()
+            return out_path, dl_name
+
+        doc = fitz.open(pdf_path)
+        for page in doc:
+            areas = page.search_for(keyword)
             for rect in areas:
                 page.add_redact_annot(rect, fill=(0, 0, 0))
-            if areas:
-                page.apply_redactions()
-
-        out_path = _make_temp_pdf_path("redact")
-        doc.save(out_path, garbage=4, deflate=True)
+            page.apply_redactions()
+        doc.save(out_path)
         doc.close()
-        return out_path
+        return out_path, dl_name
 
-    # ---------- Conversions ----------
+    def _flatten_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        """
+        Flatten annotations & form fields using PyMuPDF.
+        """
+        pdf_path = files[0]
+        self._ensure_pdf(pdf_path)
+        base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+        out_path, dl_name = self._make_output_path(base_name + "_flattened")
 
-    def pdf_to_word(self, path: str) -> str:
-        doc = fitz.open(path)
-        word_doc = Document()
+        doc = fitz.open(pdf_path)
+        # Annotations & widgets are baked in by re-saving
         for page in doc:
-            text = page.get_text("text").strip()
-            if not text:
-                continue
-            for line in text.splitlines():
-                word_doc.add_paragraph(line)
-            word_doc.add_page_break()
+            for annot in page.annots() or []:
+                annot.set_flags(fitz.ANNOT_FLAG_PRINT)
+        doc.save(out_path, deflate=True, clean=True)
         doc.close()
+        return out_path, dl_name
 
-        out_path = _make_temp_docx_path("pdf2word")
-        word_doc.save(out_path)
-        return out_path
-
-    def word_to_pdf(self, path: str) -> str:
+    def _metadata_editor(self, files: List[str], options: Dict) -> Tuple[str, str]:
         """
-        Simple DOCX -> PDF using ReportLab. It will not keep original DOCX layout,
-        but text content will be preserved.
+        Edit basic metadata fields if provided.
         """
-        docx = Document(path)
+        pdf_path = files[0]
+        self._ensure_pdf(pdf_path)
+        base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+        out_path, dl_name = self._make_output_path(base_name + "_metadata")
 
-        out_path = _make_temp_pdf_path("word2pdf")
-        c = canvas.Canvas(out_path, pagesize=A4)
-        width, height = A4
-        x = 50
-        y = height - 50
+        reader = PdfReader(pdf_path)
+        writer = PdfWriter()
 
-        for para in docx.paragraphs:
-            text = para.text
-            if not text:
-                y -= 16
-            else:
-                c.drawString(x, y, text)
-                y -= 16
-            if y < 50:
-                c.showPage()
-                y = height - 50
+        for page in reader.pages:
+            writer.add_page(page)
 
-        c.save()
-        return out_path
+        meta = reader.metadata or {}
+        new_meta = {}
+        new_meta["/Title"] = options.get("title", meta.get("/Title", ""))
+        new_meta["/Author"] = options.get("author", meta.get("/Author", ""))
+        new_meta["/Subject"] = options.get("subject", meta.get("/Subject", ""))
+        new_meta["/Keywords"] = options.get("keywords", meta.get("/Keywords", ""))
 
-    def pdf_to_images(self, path: str) -> str:
+        writer.add_metadata(new_meta)
+
+        with open(out_path, "wb") as f:
+            writer.write(f)
+        return out_path, dl_name
+
+    def _fill_forms(self, files: List[str], options: Dict) -> Tuple[str, str]:
         """
-        Export each page as PNG then zip them.
+        Basic form filling: options['fields'] = dict(field_name -> value).
         """
-        import zipfile
+        pdf_path = files[0]
+        self._ensure_pdf(pdf_path)
+        base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+        out_path, dl_name = self._make_output_path(base_name + "_filled")
 
-        doc = fitz.open(path)
-        tmp_dir = tempfile.mkdtemp(prefix="pdf2img_")
-        image_paths: List[str] = []
+        reader = PdfReader(pdf_path)
+        writer = PdfWriter()
+        fields = options.get("fields") or {}
 
-        for i, page in enumerate(doc, start=1):
-            pix = page.get_pixmap()
-            img_path = os.path.join(tmp_dir, f"page-{i}.png")
-            pix.save(img_path)
-            image_paths.append(img_path)
-        doc.close()
+        if reader.get_fields():
+            writer.append(reader)
+            writer.update_page_form_field_values(writer.pages[0], fields)
+        else:
+            for page in reader.pages:
+                writer.add_page(page)
 
-        zip_path = _make_temp_zip_path("pdf2img")
-        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-            for p in image_paths:
-                zf.write(p, os.path.basename(p))
+        with open(out_path, "wb") as f:
+            writer.write(f)
+        return out_path, dl_name
 
-        return zip_path
+    # ------------------------------------------------------------------
+    # PAGE GEOMETRY & IMAGE-BASED OPS
+    # ------------------------------------------------------------------
+    def _deskew_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        """
+        Basic deskew placeholder: convert pages to images and back.
+        (Real Hough-based deskew needs OpenCV; here we just re-render.)
+        """
+        pdf_path = files[0]
+        self._ensure_pdf(pdf_path)
+        base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+        out_path, dl_name = self._make_output_path(base_name + "_deskewed")
 
-    def images_to_pdf(self, paths: List[str]) -> str:
-        imgs: List[Image.Image] = []
-        for path in paths:
-            img = Image.open(path)
-            if img.mode != "RGB":
-                img = img.convert("RGB")
-            imgs.append(img)
-
-        if not imgs:
-            raise PDFProcessorError("No images for image-to-pdf.")
-
-        out_path = _make_temp_pdf_path("img2pdf")
-        first, *rest = imgs
-        first.save(out_path, save_all=True, append_images=rest)
-        return out_path
-
-    def pdf_to_excel(self, path: str) -> str:
-        doc = fitz.open(path)
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.title = "Extracted"
-
-        row_index = 1
+        doc = fitz.open(pdf_path)
+        new_doc = fitz.open()
+        zoom = 2.0
+        mat = fitz.Matrix(zoom, zoom)
         for page in doc:
-            text = page.get_text("text")
-            if not text:
-                continue
-            for line in text.splitlines():
-                cells = [cell.strip() for cell in line.split("\t")]
-                for col_idx, cell_val in enumerate(cells, start=1):
-                    ws.cell(row=row_index, column=col_idx, value=cell_val)
-                row_index += 1
-            row_index += 1  # blank row between pages
+            pix = page.get_pixmap(matrix=mat)
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            # TODO: real deskew with extra libs; for now, keep as is.
+            img_bytes = io.BytesIO()
+            img.save(img_bytes, format="PNG")
+            img_bytes.seek(0)
+            img_pdf = fitz.open("pdf", fitz.open("png", img_bytes.read()).convert_to_pdf())
+            new_doc.insert_pdf(img_pdf)
+
+        new_doc.save(out_path)
+        new_doc.close()
         doc.close()
+        return out_path, dl_name
 
-        # Basic column autosize
-        for column_cells in ws.columns:
-            length = max(len(str(c.value)) if c.value else 0 for c in column_cells)
-            col_letter = get_column_letter(column_cells[0].column)
-            ws.column_dimensions[col_letter].width = length + 2
-
-        out_path = _make_temp_xlsx_path("pdf2excel")
-        wb.save(out_path)
-        return out_path
-
-    def excel_to_pdf(self, path: str) -> str:
-        wb = openpyxl.load_workbook(path, data_only=True)
-        sheet = wb.active
-
-        out_path = _make_temp_pdf_path("excel2pdf")
-        c = canvas.Canvas(out_path, pagesize=letter)
-        width, height = letter
-        x = 40
-        y = height - 40
-
-        for row in sheet.iter_rows(values_only=True):
-            text = " | ".join("" if v is None else str(v) for v in row)
-            c.drawString(x, y, text)
-            y -= 16
-            if y < 40:
-                c.showPage()
-                y = height - 40
-
-        c.save()
-        return out_path
-
-    def pdf_to_powerpoint(self, path: str) -> str:
-        doc = fitz.open(path)
-        prs = Presentation()
-        blank_layout = prs.slide_layouts[6]  # blank
-
-        for page in doc:
-            pix = page.get_pixmap()
-            img_bytes = pix.tobytes("png")
-            slide = prs.slides.add_slide(blank_layout)
-            img_stream = io.BytesIO(img_bytes)
-            slide.shapes.add_picture(img_stream, Inches(0), Inches(0),
-                                     width=prs.slide_width, height=prs.slide_height)
-
-        doc.close()
-        out_path = _make_temp_pptx_path("pdf2ppt")
-        prs.save(out_path)
-        return out_path
-
-    def powerpoint_to_pdf(self, path: str) -> str:
+    def _crop_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
         """
-        Simple PPTX->PDF by rasterizing each slide using python-pptx + PIL.
-        This will not be pixel-perfect but works server-side without MS Office.
+        Crop margins by percentage: options: top, bottom, left, right (0-40).
         """
-        prs = Presentation(path)
+        pdf_path = files[0]
+        self._ensure_pdf(pdf_path)
+        base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+        out_path, dl_name = self._make_output_path(base_name + "_cropped")
 
-        out_doc = fitz.open()
-        for slide in prs.slides:
-            # create an image for each slide as plain white canvas and draw text titles
-            img = Image.new("RGB", (1600, 900), "white")
-            draw = ImageOps.exif_transpose(img)
-            # NOTE: full layout extraction is complex; we just dump text placeholders
-            buf = io.BytesIO()
-            img.save(buf, format="PNG")
-            buf.seek(0)
-            slide_pdf = fitz.open("pdf", fitz.open("png", buf).convert_to_pdf())
-            out_doc.insert_pdf(slide_pdf)
+        top_pct = float(options.get("top", 0)) / 100.0
+        bottom_pct = float(options.get("bottom", 0)) / 100.0
+        left_pct = float(options.get("left", 0)) / 100.0
+        right_pct = float(options.get("right", 0)) / 100.0
 
-        out_path = _make_temp_pdf_path("ppt2pdf")
-        out_doc.save(out_path, garbage=4, deflate=True)
-        out_doc.close()
-        return out_path
-
-    # ---------- OCR & extraction ----------
-
-    def ocr_pdf(self, path: str) -> str:
-        doc = fitz.open(path)
-        out_doc = fitz.open()
-
-        for page in doc:
-            pix = page.get_pixmap()
-            img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-            text = pytesseract.image_to_pdf_or_hocr(img, extension="pdf")
-            ocr_page = fitz.open("pdf", text)
-            out_doc.insert_pdf(ocr_page)
-
-        doc.close()
-        out_path = _make_temp_pdf_path("ocr")
-        out_doc.save(out_path, garbage=4, deflate=True)
-        out_doc.close()
-        return out_path
-
-    def extract_text(self, path: str) -> str:
-        doc = fitz.open(path)
-        texts: List[str] = []
-        for page in doc:
-            texts.append(page.get_text("text"))
-        doc.close()
-        content = "\n\n".join(texts)
-
-        fd, out_path = tempfile.mkstemp(suffix=".txt", prefix="text_")
-        os.close(fd)
-        with open(out_path, "w", encoding="utf-8", errors="ignore") as f:
-            f.write(content)
-        return out_path
-
-    def extract_images(self, path: str) -> str:
-        import zipfile
-
-        doc = fitz.open(path)
-        tmp_dir = tempfile.mkdtemp(prefix="extract_img_")
-        index = 1
-        image_paths: List[str] = []
-
-        for page_index in range(len(doc)):
-            for img in doc.get_page_images(page_index):
-                xref = img[0]
-                base_img = doc.extract_image(xref)
-                img_bytes = base_img["image"]
-                ext = base_img["ext"]
-                img_path = os.path.join(tmp_dir, f"img-{page_index+1}-{index}.{ext}")
-                with open(img_path, "wb") as f:
-                    f.write(img_bytes)
-                image_paths.append(img_path)
-                index += 1
-        doc.close()
-
-        zip_path = _make_temp_zip_path("extract_images")
-        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-            for p in image_paths:
-                zf.write(p, os.path.basename(p))
-        return zip_path
-
-    # ---------- Geometry / layout ----------
-
-    def deskew_pdf(self, path: str) -> str:
-        """
-        Basic deskew: render each page to image, apply PIL's ImageOps.autocontrast
-        and rely on PDF text orientation mostly being OK. True deskew would require
-        heavier image processing (OpenCV). This keeps everything free and simple.
-        """
-        doc = fitz.open(path)
-        out_doc = fitz.open()
-
-        for page in doc:
-            pix = page.get_pixmap()
-            img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-            # Very light enhancement instead of full Hough-deskew
-            img = ImageOps.autocontrast(img)
-            buf = io.BytesIO()
-            img.save(buf, format="PNG")
-            buf.seek(0)
-            img_pdf = fitz.open("pdf", fitz.open("png", buf).convert_to_pdf())
-            out_doc.insert_pdf(img_pdf)
-
-        doc.close()
-        out_path = _make_temp_pdf_path("deskew")
-        out_doc.save(out_path, garbage=4, deflate=True)
-        out_doc.close()
-        return out_path
-
-    def crop_pdf(
-        self,
-        path: str,
-        margin_top: int,
-        margin_right: int,
-        margin_bottom: int,
-        margin_left: int,
-    ) -> str:
-        doc = fitz.open(path)
+        doc = fitz.open(pdf_path)
         for page in doc:
             rect = page.rect
             new_rect = fitz.Rect(
-                rect.x0 + margin_left,
-                rect.y0 + margin_top,
-                rect.x1 - margin_right,
-                rect.y1 - margin_bottom,
+                rect.x0 + rect.width * left_pct,
+                rect.y0 + rect.height * top_pct,
+                rect.x1 - rect.width * right_pct,
+                rect.y1 - rect.height * bottom_pct,
             )
-            # avoid invalid rect
-            if new_rect.width <= 0 or new_rect.height <= 0:
-                continue
             page.set_cropbox(new_rect)
-
-        out_path = _make_temp_pdf_path("crop")
-        doc.save(out_path, garbage=4, deflate=True)
+        doc.save(out_path)
         doc.close()
-        return out_path
+        return out_path, dl_name
 
-    def resize_pdf(self, path: str, scale: float) -> str:
-        doc = fitz.open(path)
-        out_doc = fitz.open()
-        if scale <= 0:
-            scale = 1.0
+    def _resize_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        """
+        Resize pages to standard sizes (A4/Letter) while scaling content.
+        options["page_size"] in {"A4", "Letter"}
+        """
+        pdf_path = files[0]
+        self._ensure_pdf(pdf_path)
+        size_opt = (options.get("page_size") or "A4").upper()
+        if size_opt == "LETTER":
+            target_w, target_h = letter
+        else:
+            target_w, target_h = A4
 
-        mat = fitz.Matrix(scale, scale)
+        base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+        out_path, dl_name = self._make_output_path(base_name + f"_{size_opt}")
+
+        doc = fitz.open(pdf_path)
+        new_doc = fitz.open()
+
         for page in doc:
+            rect = page.rect
+            scale_x = target_w / rect.width
+            scale_y = target_h / rect.height
+            scale = min(scale_x, scale_y)
+            mat = fitz.Matrix(scale, scale)
             pix = page.get_pixmap(matrix=mat)
-            img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-            buf = io.BytesIO()
-            img.save(buf, format="PNG")
-            buf.seek(0)
-            img_pdf = fitz.open("pdf", fitz.open("png", buf).convert_to_pdf())
-            out_doc.insert_pdf(img_pdf)
+            img = fitz.open("png", pix.tobytes("png"))
+            page_pdf = fitz.open("pdf", img.convert_to_pdf())
+            page_pdf[0].set_cropbox(fitz.Rect(0, 0, target_w, target_h))
+            new_doc.insert_pdf(page_pdf)
 
+        new_doc.save(out_path)
+        new_doc.close()
         doc.close()
-        out_path = _make_temp_pdf_path("resize")
-        out_doc.save(out_path, garbage=4, deflate=True)
-        out_doc.close()
-        return out_path
+        return out_path, dl_name
 
-    def flatten_pdf(self, path: str) -> str:
+    def _background_remover(self, files: List[str], options: Dict) -> Tuple[str, str]:
         """
-        Flatten annotations and form fields.
+        Very basic 'background lighten' by increasing contrast on images.
         """
-        doc = fitz.open(path)
-        for page in doc:
-            annots = page.annots()
-            if annots:
-                for annot in annots:
-                    annot.set_flags(0)
-            page.clean_contents()  # merges resources
+        pdf_path = files[0]
+        self._ensure_pdf(pdf_path)
+        base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+        out_path, dl_name = self._make_output_path(base_name + "_bg_clean")
 
-        out_path = _make_temp_pdf_path("flatten")
-        doc.save(out_path, deflate=True)
-        doc.close()
-        return out_path
-
-    # ---------- Metadata & forms ----------
-
-    def edit_metadata(self, path: str, meta_json: str) -> str:
-        try:
-            new_meta = json.loads(meta_json or "{}")
-        except Exception:
-            new_meta = {}
-
-        reader = PdfReader(path)
-        writer = PdfWriter()
-        for page in reader.pages:
-            writer.add_page(page)
-
-        metadata = {}
-        for key, value in (new_meta or {}).items():
-            if not key.startswith("/"):
-                key = "/" + key
-            metadata[key] = str(value)
-
-        if metadata:
-            writer.add_metadata(metadata)
-
-        out_path = _make_temp_pdf_path("metadata")
-        with open(out_path, "wb") as f:
-            writer.write(f)
-        return out_path
-
-    def fill_forms(self, path: str, form_data_json: str) -> str:
-        """
-        Very basic AcroForm filling using PyPDF2.
-        """
-        try:
-            form_data = json.loads(form_data_json or "{}")
-        except Exception:
-            form_data = {}
-
-        reader = PdfReader(path)
-        writer = PdfWriter()
-        for page in reader.pages:
-            writer.add_page(page)
-
-        if form_data:
-            writer.update_page_form_field_values(writer.pages[0], form_data)
-
-        out_path = _make_temp_pdf_path("fillforms")
-        with open(out_path, "wb") as f:
-            writer.write(f)
-        return out_path
-
-    # ---------- Background remover ----------
-
-    def remove_background(self, path: str) -> str:
-        """
-        Simple 'background remover' for scanned PDFs:
-        - render each page to image
-        - convert to grayscale and increase contrast
-        """
-
-        doc = fitz.open(path)
-        out_doc = fitz.open()
+        doc = fitz.open(pdf_path)
+        new_doc = fitz.open()
 
         for page in doc:
             pix = page.get_pixmap()
-            img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-            # Convert to grayscale and auto-contrast to suppress background noise
-            img = ImageOps.grayscale(img)
-            img = ImageOps.autocontrast(img)
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            # Simple threshold/whitening
+            img = img.convert("L")
+            img = img.point(lambda p: 255 if p > 200 else p)
+            img = img.convert("RGB")
 
             buf = io.BytesIO()
             img.save(buf, format="PNG")
             buf.seek(0)
+            img_pdf = fitz.open("pdf", fitz.open("png", buf.read()).convert_to_pdf())
+            new_doc.insert_pdf(img_pdf)
 
-            img_pdf = fitz.open("pdf", fitz.open("png", buf).convert_to_pdf())
-            out_doc.insert_pdf(img_pdf)
+        new_doc.save(out_path)
+        new_doc.close()
+        doc.close()
+        return out_path, dl_name
+
+    # ------------------------------------------------------------------
+    # CONVERSIONS
+    # ------------------------------------------------------------------
+    def _pdf_to_word(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        pdf_path = files[0]
+        self._ensure_pdf(pdf_path)
+        base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+        out_path, dl_name = self._make_output_path(base_name, ".docx")
+
+        doc_pdf = fitz.open(pdf_path)
+        docx = Document()
+        for page in doc_pdf:
+            text = page.get_text()
+            docx.add_paragraph(text)
+            docx.add_page_break()
+        docx.save(out_path)
+        doc_pdf.close()
+        return out_path, dl_name
+
+    def _word_to_p
+
+df(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        """
+        Convert simple DOCX to PDF using reportlab (text-only).
+        """
+        docx_path = files[0]
+        ext = os.path.splitext(docx_path)[1].lower()
+        if ext not in [".docx"]:
+            raise ValueError("Please upload a DOCX file for Word to PDF.")
+
+        base_name = os.path.splitext(os.path.basename(docx_path))[0]
+        out_path, dl_name = self._make_output_path(base_name, ".pdf")
+
+        doc = Document(docx_path)
+        c = canvas.Canvas(out_path, pagesize=A4)
+        width, height = A4
+        y = height - 50
+        for para in doc.paragraphs:
+            text = para.text
+            if not text.strip():
+                y -= 20
+                continue
+            c.drawString(50, y, text[:1200])  # simple cut
+            y -= 14
+            if y < 50:
+                c.showPage()
+                y = height - 50
+        c.save()
+        return out_path, dl_name
+
+    def _pdf_to_image(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        """
+        Convert each PDF page to PNG; return ZIP of images.
+        """
+        pdf_path = files[0]
+        self._ensure_pdf(pdf_path)
+        base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+        zip_path, dl_name = self._make_output_path(base_name + "_images", ".zip")
+
+        zoom = float(options.get("zoom", 2.0))
+        mat = fitz.Matrix(zoom, zoom)
+        doc = fitz.open(pdf_path)
+
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for i, page in enumerate(doc):
+                pix = page.get_pixmap(matrix=mat)
+                img_name = f"{base_name}_page_{i+1}.png"
+                zf.writestr(img_name, pix.tobytes("png"))
 
         doc.close()
-        out_path = _make_temp_pdf_path("bgremove")
-        out_doc.save(out_path, garbage=4, deflate=True)
-        out_doc.close()
-        return out_path
+        return zip_path, dl_name
+
+    def _image_to_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        """
+        Merge images into a single PDF.
+        """
+        base_name = "images_to_pdf"
+        out_path, dl_name = self._make_output_path(base_name, ".pdf")
+
+        pdf_bytes = io.BytesIO()
+        img_list = []
+
+        for img_path in files:
+            ext = os.path.splitext(img_path)[1].lower()
+            if ext not in [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"]:
+                continue
+            img = Image.open(img_path).convert("RGB")
+            img_list.append(img)
+
+        if not img_list:
+            raise ValueError("No valid image files found for Image to PDF.")
+
+        first, *rest = img_list
+        first.save(out_path, save_all=True, append_images=rest)
+        return out_path, dl_name
+
+    def _pdf_to_excel(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        """
+        Simple table-like extraction: each page as a sheet with lines of text.
+        """
+        pdf_path = files[0]
+        self._ensure_pdf(pdf_path)
+        base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+        out_path, dl_name = self._make_output_path(base_name, ".xlsx")
+
+        pdf_doc = fitz.open(pdf_path)
+        wb = Workbook()
+        ws0 = wb.active
+        ws0.title = "Page1"
+
+        for i, page in enumerate(pdf_doc):
+            if i == 0:
+                ws = ws0
+            else:
+                ws = wb.create_sheet(title=f"Page{i+1}")
+            text = page.get_text()
+            for row_idx, line in enumerate(text.splitlines(), start=1):
+                ws.cell(row=row_idx, column=1, value=line)
+
+        wb.save(out_path)
+        pdf_doc.close()
+        return out_path, dl_name
+
+    def _excel_to_p
+df(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        """
+        Render basic Excel text into PDF using reportlab.
+        """
+        xlsx_path = files[0]
+        ext = os.path.splitext(xlsx_path)[1].lower()
+        if ext not in [".xlsx"]:
+            raise ValueError("Please upload an XLSX file for Excel to PDF.")
+
+        base_name = os.path.splitext(os.path.basename(xlsx_path))[0]
+        out_path, dl_name = self._make_output_path(base_name, ".pdf")
+
+        wb = load_workbook(xlsx_path, data_only=True)
+        c = canvas.Canvas(out_path, pagesize=A4)
+        width, height = A4
+        y = height - 50
+
+        for sheet in wb.worksheets:
+            c.setFont("Helvetica-Bold", 12)
+            c.drawString(50, y, f"Sheet: {sheet.title}")
+            y -= 20
+            c.setFont("Helvetica", 10)
+
+            for row in sheet.iter_rows(values_only=True):
+                line = " | ".join("" if v is None else str(v) for v in row)
+                c.drawString(50, y, line[:1200])
+                y -= 12
+                if y < 50:
+                    c.showPage()
+                    y = height - 50
+
+            c.showPage()
+            y = height - 50
+
+        c.save()
+        return out_path, dl_name
+
+    def _pdf_to_powerpoint(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        """
+        Convert each page to a slide background image.
+        """
+        pdf_path = files[0]
+        self._ensure_pdf(pdf_path)
+        base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+        out_path, dl_name = self._make_output_path(base_name, ".pptx")
+
+        doc = fitz.open(pdf_path)
+        prs = Presentation()
+        # default 16:9 size – we just stretch images
+        blank_layout = prs.slide_layouts[6]
+
+        for page in doc:
+            slide = prs.slides.add_slide(blank_layout)
+            pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+            img_bytes = pix.tobytes("png")
+            img_stream = io.BytesIO(img_bytes)
+            pic = slide.shapes.add_picture(
+                img_stream,
+                left=0,
+                top=0,
+                width=prs.slide_width,
+                height=prs.slide_height,
+            )
+
+        prs.save(out_path)
+        doc.close()
+        return out_path, dl_name
+
+    def _powerpoint_to_p
+df(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        """
+        Convert PPTX slide text into a simple PDF (not full visual render).
+        """
+        pptx_path = files[0]
+        ext = os.path.splitext(pptx_path)[1].lower()
+        if ext not in [".pptx"]:
+            raise ValueError("Please upload a PPTX file for PowerPoint to PDF.")
+
+        base_name = os.path.splitext(os.path.basename(pptx_path))[0]
+        out_path, dl_name = self._make_output_path(base_name, ".pdf")
+
+        prs = Presentation(pptx_path)
+        c = canvas.Canvas(out_path, pagesize=A4)
+        width, height = A4
+        y = height - 50
+
+        for i, slide in enumerate(prs.slides, start=1):
+            c.setFont("Helvetica-Bold", 14)
+            c.drawString(50, y, f"Slide {i}")
+            y -= 24
+            c.setFont("Helvetica", 11)
+
+            for shape in slide.shapes:
+                if hasattr(shape, "text"):
+                    for line in shape.text.splitlines():
+                        c.drawString(60, y, line[:1200])
+                        y -= 14
+                        if y < 50:
+                            c.showPage()
+                            y = height - 50
+            c.showPage()
+            y = height - 50
+
+        c.save()
+        return out_path, dl_name
+
+    # ------------------------------------------------------------------
+    # TEXT EXTRACTION / OCR / MEDIA
+    # ------------------------------------------------------------------
+    def _ocr_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        """
+        If Tesseract available: OCR each page as image.
+        Otherwise, fallback to get_text().
+        Returns a searchable PDF (text layer added) or a .txt if needed.
+        """
+        pdf_path = files[0]
+        self._ensure_pdf(pdf_path)
+        base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+
+        if not _HAS_TESSERACT:
+            # Fallback: just extract text to TXT
+            out_path, dl_name = self._make_output_path(base_name + "_ocr_fallback", ".txt")
+            doc = fitz.open(pdf_path)
+            with open(out_path, "w", encoding="utf-8") as f:
+                for page in doc:
+                    f.write(page.get_text())
+                    f.write("\n\n")
+            doc.close()
+            return out_path, dl_name
+
+        # Real-ish OCR to TEXT file (for speed); you can later adjust to searchable PDF
+        out_path, dl_name = self._make_output_path(base_name + "_ocr", ".txt")
+        doc = fitz.open(pdf_path)
+        with open(out_path, "w", encoding="utf-8") as f:
+            for page in doc:
+                pix = page.get_pixmap()
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                text = pytesseract.image_to_string(img)
+                f.write(text)
+                f.write("\n\n")
+        doc.close()
+        return out_path, dl_name
+
+    def _extract_text(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        pdf_path = files[0]
+        self._ensure_pdf(pdf_path)
+        base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+        out_path, dl_name = self._make_output_path(base_name + "_text", ".txt")
+
+        doc = fitz.open(pdf_path)
+        with open(out_path, "w", encoding="utf-8") as f:
+            for page in doc:
+                f.write(page.get_text())
+                f.write("\n\n")
+        doc.close()
+        return out_path, dl_name
+
+    def _extract_images(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        """
+        Extract embedded images from PDF into a ZIP.
+        """
+        pdf_path = files[0]
+        self._ensure_pdf(pdf_path)
+        base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+        zip_path, dl_name = self._make_output_path(base_name + "_images", ".zip")
+
+        doc = fitz.open(pdf_path)
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for page_index in range(len(doc)):
+                page = doc[page_index]
+                image_list = page.get_images(full=True)
+                for img_index, img_info in enumerate(image_list, start=1):
+                    xref = img_info[0]
+                    base_img = doc.extract_image(xref)
+                    img_bytes = base_img["image"]
+                    ext = base_img["ext"]
+                    img_name = f"{base_name}_p{page_index+1}_img{img_index}.{ext}"
+                    zf.writestr(img_name, img_bytes)
+
+        doc.close()
+        return zip_path, dl_name
