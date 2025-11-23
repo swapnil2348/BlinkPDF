@@ -761,9 +761,11 @@
       }
     }
 
-    // Upload area click -> trigger input
+    // Upload area click -> trigger input (FIX: avoid double dialog)
     if (uploadArea && fileInput) {
-      uploadArea.addEventListener('click', function () {
+      uploadArea.addEventListener('click', function (e) {
+        // If the click already originated on the real input, don't trigger another click
+        if (e.target === fileInput) return;
         fileInput.click();
       });
 
@@ -954,4 +956,5 @@
     }
   });
 </script>
+
 {% endblock %}
