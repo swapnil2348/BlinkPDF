@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ tool.title }} — BlinkPDF{% endblock %}
-{% block meta %}{{ tool.desc if tool.desc is defined else '' }}{% endblock %}
+{% block meta %}{{ tool.desc }}{% endblock %}
 
 {% block content %}
 <section class="bg-gradient-to-b from-violet-50 to-white py-10">
@@ -23,7 +23,7 @@
           {{ tool.title }}
         </h1>
         <p class="text-sm sm:text-base text-slate-600 max-w-xl">
-          {{ tool.desc if tool.desc is defined else '' }}
+          {{ tool.desc }}
         </p>
       </div>
       <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500">
@@ -45,11 +45,10 @@
     <div class="grid lg:grid-cols-2 gap-6 lg:gap-8 items-start">
       <!-- LEFT: Upload + Advanced -->
       <div class="space-y-6">
-
         <!-- Upload card -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-5">
           <h2 class="text-sm font-semibold text-slate-800 mb-3 flex items-center justify-between">
-            Upload file
+            Upload file{% if tool.slug == 'merge-pdf' or tool.slug == 'image-to-pdf' %}s{% endif %}
             <span class="text-[11px] uppercase tracking-wide text-slate-400">
               Step 1
             </span>
@@ -57,16 +56,9 @@
 
           <div id="upload-area"
                class="relative border border-dashed border-violet-200 rounded-xl p-4 sm:p-6 text-center cursor-pointer hover:border-violet-400 transition group">
-
-           <!-- ✅ FIXED: removed `multiple` -->
-           <input 
-             type="file" 
-             id="file-input" 
-             name="files" 
-             {% if tool.slug in ['merge-pdf','image-to-pdf'] %}multiple{% endif %}
-             required 
+           <input type="file" id="file-input" name="files"
+             {% if tool.slug in ['merge-pdf','image-to-pdf'] %}multiple{% endif %}required
              class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-
             <div class="flex flex-col items-center gap-3 pointer-events-none">
               <div class="w-11 h-11 rounded-2xl bg-violet-50 flex items-center justify-center border border-violet-100 group-hover:bg-violet-100 transition">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-violet-500" fill="none"
@@ -77,10 +69,16 @@
               </div>
               <div class="space-y-0.5">
                 <p class="text-sm font-medium text-slate-900">
-                  Click to upload file or drag & drop
+                  Click to upload{% if tool.slug in ['merge-pdf','image-to-pdf'] %} files{% else %} file{% endif %} or drag & drop
                 </p>
                 <p class="text-[11px] text-slate-500">
-                  Supports PDF · Max 500MB
+                  {% if tool.slug in ['word-to-pdf','excel-to-pdf','powerpoint-to-pdf'] %}
+                    Supports DOCX, PPTX, XLSX · Max 500MB
+                  {% elif tool.slug == 'image-to-pdf' or tool.slug == 'background-remover' %}
+                    Supports JPG, PNG, WEBP · Max 500MB
+                  {% else %}
+                    Supports PDF · Max 500MB
+                  {% endif %}
                 </p>
               </div>
               <div id="file-info" class="hidden text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-full px-3 py-1 mt-1 max-w-full truncate">
@@ -90,90 +88,861 @@
           </div>
         </div>
 
-<!-- EVERYTHING ABOVE IS SAME UI – JUST FIXED INPUT -->
+        <!-- Advanced settings card -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-5">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-semibold text-slate-800">
+              Advanced settings
+            </h2>
+            <span class="text-[11px] uppercase tracking-wide text-slate-400">
+              Optional
+            </span>
+          </div>
 
-<!-- ===================================================================================== -->
-<!-- ============================== SCRIPT PART (FIXED PREVIEW) ========================== -->
-<!-- ===================================================================================== -->
+          <div class="space-y-4 text-xs sm:text-sm text-slate-700">
+            <!-- Tool specific options -->
+            {% if tool.slug == 'compress-pdf' %}
+              <!-- Compression level -->
+              <div class="space-y-1">
+                <div class="flex items-center justify-between mb-1">
+                  <label for="compression_level" class="font-medium">Compression level</label>
+                  <span id="compression-label" class="text-[11px] font-semibold text-violet-600">
+                    Balanced
+                  </span>
+                </div>
+                <input
+                  id="compression_level"
+                  name="compression_level"
+                  type="range"
+                  min="1"
+                  max="3"
+                  step="1"
+                  value="2"
+                  class="w-full accent-violet-500">
+                <div class="flex justify-between text-[11px] text-slate-400 mt-1">
+                  <span>High quality</span>
+                  <span>Balanced</span>
+                  <span>Smallest file</span>
+                </div>
+              </div>
+            {% endif %}
 
+            {% if tool.slug == 'rotate-pdf' %}
+              <!-- Rotation controls -->
+              <div class="space-y-2">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="font-medium">Rotation</span>
+                  <span id="rotation-label" class="text-[11px] font-semibold text-violet-600">0°</span>
+                </div>
+                <div class="flex items-center gap-3 mb-2">
+                  <button type="button"
+                          class="rotate-btn px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:border-violet-400 hover:text-violet-700 flex items-center gap-1"
+                          data-direction="-90">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none"
+                         viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M4 4v6h6M20 20v-6h-6M5 19a8 8 0 0 0 11.31 0L20 15M4 9l3.69-4a8 8 0 0 1 11.31 0" />
+                    </svg>
+                    -90°
+                  </button>
+                  <button type="button"
+                          class="rotate-btn px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:border-violet-400 hover:text-violet-700 flex items-center gap-1"
+                          data-direction="90">
+                    +90°
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none"
+                         viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M20 4v6h-6M4 20v-6h6M19 19a8 8 0 0 1-11.31 0L4 15M20 9l-3.69-4a8 8 0 0 0-11.31 0" />
+                    </svg>
+                  </button>
+                  <button type="button"
+                          id="rotation-reset"
+                          class="ml-auto px-2.5 py-1.5 rounded-lg border border-slate-200 text-[11px] font-medium text-slate-500 hover:border-slate-300">
+                    Reset
+                  </button>
+                </div>
+                <input
+                  id="rotation-slider"
+                  type="range"
+                  min="0"
+                  max="270"
+                  step="90"
+                  value="0"
+                  class="w-full accent-violet-500">
+                <input type="hidden" id="rotation_angle_input" name="rotation_angle" value="0">
+              </div>
+            {% endif %}
+
+            {% if tool.slug in ['split-pdf','extract-pages','crop-pdf','resize-pdf','flatten-pdf','organize-pdf'] %}
+              <!-- Page selection -->
+              <div class="space-y-1">
+                <label for="pages" class="font-medium">
+                  Pages
+                  <span class="text-[11px] text-slate-400 ml-1">(e.g. 1-3,5,8)</span>
+                </label>
+                <input
+                  id="pages"
+                  name="pages"
+                  type="text"
+                  class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-400"
+                  placeholder="Leave empty for all pages">
+                {% if tool.slug in ['organize-pdf','crop-pdf'] %}
+                  <p class="text-[11px] text-slate-400 mt-1">
+                    You can also use the live preview thumbnails to include/exclude and reorder pages visually.
+                  </p>
+                {% endif %}
+              </div>
+            {% endif %}
+
+            {% if tool.slug in ['protect-pdf','unlock-pdf'] %}
+              <!-- Password -->
+              <div class="space-y-1">
+                <label for="password" class="font-medium">
+                  {% if tool.slug == 'protect-pdf' %}Set password{% else %}PDF password{% endif %}
+                </label>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-400"
+                  placeholder="{% if tool.slug == 'protect-pdf' %}Choose a strong password{% else %}Enter PDF password{% endif %}">
+              </div>
+            {% endif %}
+
+            {% if tool.slug == 'watermark-pdf' %}
+              <!-- Watermark text -->
+              <div class="space-y-1">
+                <label for="watermark_text" class="font-medium">
+                  Watermark text
+                </label>
+                <input
+                  id="watermark_text"
+                  name="watermark_text"
+                  type="text"
+                  class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-400"
+                  placeholder="CONFIDENTIAL · DRAFT · Do not copy">
+                <p class="text-[11px] text-slate-400 mt-1">
+                  Live overlay watermark is shown on the page thumbnails.
+                </p>
+              </div>
+            {% endif %}
+
+            {% if tool.slug == 'crop-pdf' %}
+              <!-- Crop hint -->
+              <div class="space-y-1">
+                <p class="text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+                  Use the draggable selection box on the preview thumbnails to choose the crop area for each page.
+                </p>
+              </div>
+            {% endif %}
+
+            {% if tool.slug in ['metadata-editor','fill-forms'] %}
+              <!-- Simple toggle note -->
+              <p class="text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+                This tool uses your original PDF structure. Use the live preview to check pages before processing.
+              </p>
+            {% endif %}
+
+            <!-- Generic checkbox: keep original file name -->
+            <div class="pt-2 border-t border-dashed border-slate-100 mt-2">
+              <label class="inline-flex items-center gap-2 text-[11px] text-slate-500">
+                <input type="checkbox"
+                       name="keep_filename"
+                       value="1"
+                       class="rounded border-slate-300 text-violet-600 focus:ring-violet-500/40"
+                       checked>
+                <span>Keep original filename when possible</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Process button -->
+        <form id="tool-form" action="{{ url_for('process_tool', slug=tool.slug) }}" method="POST" enctype="multipart/form-data">
+
+          <!-- Hidden file input target -->
+          <input type="file"
+                 name="file"
+                 id="hidden-file-input"
+                 class="hidden"
+                 {% if tool.slug in ['merge-pdf','image-to-pdf'] %}multiple{% endif %}>
+
+          <!-- Hidden mirror of advanced fields (they will be copied from visible controls before submit) -->
+          <input type="hidden" name="compression_level" id="hidden_compression_level">
+          <input type="hidden" name="pages" id="hidden_pages">
+          <input type="hidden" name="password" id="hidden_password">
+          <input type="hidden" name="watermark_text" id="hidden_watermark_text">
+          <input type="hidden" name="keep_filename_hidden" id="hidden_keep_filename">
+
+          <!-- PRO++: page order / include / crop regions -->
+          <input type="hidden" name="page_order" id="hidden_page_order">
+          <input type="hidden" name="deleted_pages" id="hidden_deleted_pages">
+          <input type="hidden" name="crop_regions" id="hidden_crop_regions">
+
+          <button
+            type="submit"
+            id="process-btn"
+            class="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold py-3.5 shadow-sm shadow-violet-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition">
+            <span class="flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5" fill="none"
+                   viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M12 4v16m0-16 5 5m-5-5-5 5" />
+              </svg>
+              <span>Process {{ tool.title }}</span>
+            </span>
+          </button>
+
+          <p class="text-[11px] text-slate-400 text-center">
+            Processing happens in the cloud. Your files are deleted automatically after a short time.
+          </p>
+        </form>
+      </div>
+
+      <!-- RIGHT: Live preview -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-5 flex flex-col h-full">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h2 class="text-sm font-semibold text-slate-800">
+              Live preview
+            </h2>
+            <p class="text-[11px] text-slate-500">
+              Shows the first pages of your PDF with advanced settings applied visually.
+            </p>
+          </div>
+          <div class="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-1 border border-slate-100">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            <span class="text-[11px] text-slate-500">Local preview · No upload yet</span>
+          </div>
+        </div>
+
+        <div id="preview-wrapper" class="flex-1 min-h-[220px] rounded-xl border border-dashed border-slate-200 bg-slate-50/60 flex flex-col">
+          <div id="preview-empty-state" class="flex-1 flex flex-col items-center justify-center text-center px-4 py-8">
+            <div class="w-12 h-12 rounded-2xl bg-white shadow-sm border border-slate-100 flex items-center justify-center mb-3">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-slate-400" fill="none"
+                   viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M8 3h8l4 4v11a2 2 0 0 1-2 2H8m0-17a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2m0-17v4h8" />
+              </svg>
+            </div>
+            <p class="text-xs font-medium text-slate-700 mb-1">No file selected yet</p>
+            <p class="text-[11px] text-slate-500">
+              Choose a PDF above to see page thumbnails and effects of advanced settings.
+            </p>
+          </div>
+
+          <div id="preview-content" class="flex-1 hidden flex-col">
+            <!-- Top bar -->
+            <div class="flex items-center justify-between px-3 py-2 border-b border-slate-200 bg-slate-50/80">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span id="preview-filename" class="text-xs font-medium text-slate-700 truncate max-w-[160px] sm:max-w-xs">
+                  file.pdf
+                </span>
+              </div>
+              <div class="flex items-center gap-2 text-[11px] text-slate-400">
+                <span id="preview-pages-count">0 pages</span>
+                <span>·</span>
+                <span id="preview-size">0 MB</span>
+              </div>
+            </div>
+
+            <!-- Thumbnails -->
+            <div class="flex-1 overflow-auto p-3 sm:p-4">
+              <div id="preview-thumbnails"
+                   class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 auto-rows-max">
+                <!-- canvas thumbnails injected by JS -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-3 flex items-center justify-between text-[11px] text-slate-400">
+          <span>
+            Preview is approximate. Final result is generated by the server.
+          </span>
+          <button type="button"
+                  id="preview-reset-btn"
+                  class="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-slate-200 bg-white hover:border-slate-300">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none"
+                 viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M4 4v6h6M20 20v-6h-6M5 19a8 8 0 0 0 11.31 0L20 15M4 9l3.69-4a8 8 0 0 1 11.31 0" />
+            </svg>
+            Reset preview
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- More tools (random suggestions) -->
+    <div class="mt-10 border-t border-slate-100 pt-6">
+      <h3 class="text-sm font-semibold text-slate-800 mb-3">
+        You might also need
+      </h3>
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        {% for t in random_tools %}
+          <a href="{{ url_for('tool_page', slug=t.slug if t.slug is defined else t['slug']) }}"
+             class="group bg-white rounded-xl border border-slate-100 hover:border-violet-200 shadow-sm hover:shadow-md transition p-3 flex items-start gap-2.5 text-xs">
+            <div class="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center border border-violet-100">
+              <img src="{{ url_for('static', filename='icons/' ~ (t.icon if t.icon is defined else t['icon'])) }}"
+                   alt="{{ t.title if t.title is defined else t['title'] }}"
+                   class="w-4 h-4">
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2">
+                <p class="font-semibold text-slate-800 truncate">
+                  {{ t.title if t.title is defined else t['title'] }}
+                </p>
+                <svg xmlns="http://www.w3.org/2000/svg"
+                     class="w-3.5 h-3.5 text-slate-300 group-hover:text-violet-400 flex-shrink-0"
+                     fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+              <p class="text-[11px] text-slate-500 line-clamp-2">
+                {{ t.desc if t.desc is defined else t['desc'] }}
+              </p>
+            </div>
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PDF.js (for local preview only) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
 <script>
-document.addEventListener('DOMContentLoaded', function () {
+  document.addEventListener('DOMContentLoaded', function () {
+    const root = document.getElementById('tool-root');
+    if (!root) return;
+    const toolSlug = root.getAttribute('data-tool-slug');
 
-  const fileInput = document.getElementById('file-input');
-  const fileInfo = document.getElementById('file-info');
+    const uploadArea = document.getElementById('upload-area');
+    const fileInput = document.getElementById('file-input');
+    const fileInfo = document.getElementById('file-info');
 
-  const previewEmpty = document.getElementById('preview-empty-state');
-  const previewContent = document.getElementById('preview-content');
-  const previewThumbnails = document.getElementById('preview-thumbnails');
-  const previewFilename = document.getElementById('preview-filename');
-  const previewPagesCount = document.getElementById('preview-pages-count');
-  const previewSize = document.getElementById('preview-size');
+    const previewWrapper = document.getElementById('preview-wrapper');
+    const previewEmpty = document.getElementById('preview-empty-state');
+    const previewContent = document.getElementById('preview-content');
+    const previewThumbnails = document.getElementById('preview-thumbnails');
+    const previewFilename = document.getElementById('preview-filename');
+    const previewPagesCount = document.getElementById('preview-pages-count');
+    const previewSize = document.getElementById('preview-size');
+    const previewResetBtn = document.getElementById('preview-reset-btn');
 
-  if (window['pdfjsLib']) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-  }
+    const form = document.getElementById('tool-form');
+    const hiddenFileInput = document.getElementById('hidden-file-input');
 
-  function humanFileSize(bytes) {
-    if (!bytes || isNaN(bytes)) return '0 MB';
-    const mb = bytes / (1024 * 1024);
-    return mb < 1 ? mb.toFixed(2) + ' MB' : mb.toFixed(1) + ' MB';
-  }
+    const compressionSlider = document.getElementById('compression_level');
+    const compressionLabel = document.getElementById('compression-label');
 
-  async function renderPdfPreview(file) {
+    const rotationSlider = document.getElementById('rotation-slider');
+    const rotationLabel = document.getElementById('rotation-label');
+    const rotationAngleInput = document.getElementById('rotation_angle_input');
+    const rotateButtons = document.querySelectorAll('.rotate-btn');
+    const rotationResetBtn = document.getElementById('rotation-reset');
 
-    previewEmpty.classList.add('hidden');
-    previewContent.classList.remove('hidden');
+    const pagesInput = document.getElementById('pages');
+    const passwordInput = document.getElementById('password');
+    const watermarkInput = document.getElementById('watermark_text');
+    const keepFilenameCheckbox = document.querySelector('input[name="keep_filename"]');
 
-    previewFilename.textContent = file.name;
-    previewSize.textContent = humanFileSize(file.size);
+    const hiddenCompressionLevel = document.getElementById('hidden_compression_level');
+    const hiddenPages = document.getElementById('hidden_pages');
+    const hiddenPassword = document.getElementById('hidden_password');
+    const hiddenWatermarkText = document.getElementById('hidden_watermark_text');
+    const hiddenKeepFilename = document.getElementById('hidden_keep_filename');
 
-    const uint8 = new Uint8Array(await file.arrayBuffer());
-    const doc = await pdfjsLib.getDocument({ data: uint8 }).promise;
+    const hiddenPageOrder = document.getElementById('hidden_page_order');
+    const hiddenDeletedPages = document.getElementById('hidden_deleted_pages');
+    const hiddenCropRegions = document.getElementById('hidden_crop_regions');
 
-    previewPagesCount.textContent = doc.numPages + " pages";
+    let currentFile = null;
+    let currentRotation = 0;
 
-    previewThumbnails.innerHTML = '';
+    // Crop drag state (simple draggable selection box)
+    let activeCropBox = null;
+    let cropDragOffset = { x: 0, y: 0 };
 
-    // ✅ FIXED : Only ONE PAGE WILL DISPLAY
-    const maxPages = 1;
-
-    for (let i = 1; i <= maxPages; i++) {
-      const page = await doc.getPage(i);
-      const viewport = page.getViewport({ scale: 0.4 });
-
-      const wrapper = document.createElement('div');
-      wrapper.className = 'bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden';
-
-      const canvas = document.createElement('canvas');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      canvas.className = 'w-full h-auto bg-slate-100';
-
-      const ctx = canvas.getContext('2d');
-      await page.render({ canvasContext: ctx, viewport }).promise;
-
-      wrapper.appendChild(canvas);
-      previewThumbnails.appendChild(wrapper);
+    // --- PDF.js worker config ---
+    if (window['pdfjsLib']) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
     }
-  }
 
-  fileInput.addEventListener('change', function (e) {
-    const file = e.target.files[0];
+    function humanFileSize(bytes) {
+      if (!bytes || isNaN(bytes)) return '0 MB';
+      const mb = bytes / (1024 * 1024);
+      return mb < 1 ? mb.toFixed(2) + ' MB' : mb.toFixed(1) + ' MB';
+    }
 
-    if (!file) return;
+    function showPreviewPanel() {
+      previewEmpty.classList.add('hidden');
+      previewContent.classList.remove('hidden');
+    }
 
-    fileInfo.classList.remove('hidden');
-    fileInfo.textContent = file.name + ' · ' + humanFileSize(file.size);
+    function resetPreview() {
+      previewThumbnails.innerHTML = '';
+      previewEmpty.classList.remove('hidden');
+      previewContent.classList.add('hidden');
+      currentRotation = 0;
+      activeCropBox = null;
+      if (rotationSlider && rotationLabel && rotationAngleInput) {
+        rotationSlider.value = 0;
+        rotationLabel.textContent = '0°';
+        rotationAngleInput.value = 0;
+      }
+    }
 
-    if (file.type === "application/pdf" || file.name.endsWith('.pdf')) {
-      renderPdfPreview(file);
+    function applyRotationToThumbnails(angle) {
+      const canvases = previewThumbnails.querySelectorAll('canvas');
+      canvases.forEach(cv => {
+        cv.style.transform = 'rotate(' + angle + 'deg)';
+      });
+    }
+
+    function applyWatermarkOverlay(text) {
+      const wrappers = previewThumbnails.querySelectorAll('.thumb-wrapper');
+      wrappers.forEach(w => {
+        let overlay = w.querySelector('.watermark-overlay');
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.className =
+            'watermark-overlay pointer-events-none absolute inset-0 flex items-center justify-center text-[10px] sm:text-xs font-semibold tracking-wide uppercase text-violet-600/40';
+          w.appendChild(overlay);
+        }
+        overlay.textContent = text || '';
+        overlay.style.opacity = text ? '1' : '0';
+      });
+    }
+
+    function setupPageControls() {
+      // PRO++ page include + reorder controls
+      const wrappers = previewThumbnails.querySelectorAll('.thumb-wrapper');
+      wrappers.forEach(w => {
+        const pageNumber = w.dataset.pageNumber;
+        // Skip if already added
+        if (w.querySelector('.page-control-bar')) return;
+
+        const controlBar = document.createElement('div');
+        controlBar.className =
+          'page-control-bar flex items-center justify-between px-1.5 py-1 bg-white/80 border-t border-slate-100';
+
+        const left = document.createElement('label');
+        left.className = 'inline-flex items-center gap-1 text-[10px] text-slate-500';
+        const includeCheckbox = document.createElement('input');
+        includeCheckbox.type = 'checkbox';
+        includeCheckbox.className =
+          'page-include-checkbox rounded border-slate-300 text-violet-600 focus:ring-0';
+        includeCheckbox.checked = true;
+        includeCheckbox.dataset.pageNumber = pageNumber;
+        includeCheckbox.addEventListener('change', () => {
+          if (includeCheckbox.checked) {
+            w.classList.remove('opacity-40');
+          } else {
+            w.classList.add('opacity-40');
+          }
+        });
+        const spanLabel = document.createElement('span');
+        spanLabel.textContent = 'Include';
+        left.appendChild(includeCheckbox);
+        left.appendChild(spanLabel);
+
+        const right = document.createElement('div');
+        right.className = 'flex items-center gap-1 text-[10px] text-slate-400';
+
+        const upBtn = document.createElement('button');
+        upBtn.type = 'button';
+        upBtn.className =
+          'move-page-btn px-1.5 py-0.5 rounded border border-slate-200 hover:border-violet-300';
+        upBtn.dataset.direction = 'up';
+        upBtn.textContent = '↑';
+        upBtn.addEventListener('click', () => {
+          const prev = w.previousElementSibling;
+          if (prev) {
+            previewThumbnails.insertBefore(w, prev);
+          }
+        });
+
+        const downBtn = document.createElement('button');
+        downBtn.type = 'button';
+        downBtn.className =
+          'move-page-btn px-1.5 py-0.5 rounded border border-slate-200 hover:border-violet-300';
+        downBtn.dataset.direction = 'down';
+        downBtn.textContent = '↓';
+        downBtn.addEventListener('click', () => {
+          const next = w.nextElementSibling;
+          if (next) {
+            previewThumbnails.insertBefore(next, w);
+          }
+        });
+
+        right.appendChild(upBtn);
+        right.appendChild(downBtn);
+
+        controlBar.appendChild(left);
+        controlBar.appendChild(right);
+        w.appendChild(controlBar);
+      });
+    }
+
+    function setupCropBoxes() {
+      if (toolSlug !== 'crop-pdf') return;
+      const wrappers = previewThumbnails.querySelectorAll('.thumb-wrapper');
+
+      wrappers.forEach(w => {
+        // Avoid duplicates
+        if (w.querySelector('.crop-box')) return;
+        const canvas = w.querySelector('canvas');
+        if (!canvas) return;
+
+        const box = document.createElement('div');
+        box.className =
+          'crop-box absolute border-2 border-violet-500/80 bg-violet-200/10 rounded pointer-events-auto';
+        box.style.left = '12%';
+        box.style.top = '12%';
+        box.style.width = '70%';
+        box.style.height = '70%';
+        box.dataset.pageNumber = w.dataset.pageNumber;
+
+        // Make wrapper position:relative if not already
+        if (getComputedStyle(w).position === 'static') {
+          w.style.position = 'relative';
+        }
+
+        // Dragging (move only, no resize for now)
+        box.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          activeCropBox = box;
+          const rect = box.getBoundingClientRect();
+          cropDragOffset.x = e.clientX - rect.left;
+          cropDragOffset.y = e.clientY - rect.top;
+          document.body.classList.add('select-none');
+        });
+
+        w.appendChild(box);
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!activeCropBox) return;
+        const wrapper = activeCropBox.closest('.thumb-wrapper');
+        if (!wrapper) return;
+        const wRect = wrapper.getBoundingClientRect();
+
+        let newLeft = e.clientX - wRect.left - cropDragOffset.x;
+        let newTop = e.clientY - wRect.top - cropDragOffset.y;
+
+        const maxLeft = wRect.width - activeCropBox.offsetWidth - 4;
+        const maxTop = wRect.height - activeCropBox.offsetHeight - 24; // leave room for page label + controls
+
+        newLeft = Math.max(0, Math.min(newLeft, maxLeft));
+        newTop = Math.max(0, Math.min(newTop, maxTop));
+
+        activeCropBox.style.left = (newLeft / wRect.width * 100) + '%';
+        activeCropBox.style.top = (newTop / wRect.height * 100) + '%';
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (activeCropBox) {
+          activeCropBox = null;
+          document.body.classList.remove('select-none');
+        }
+      });
+    }
+
+    async function renderPdfPreview(file) {
+      if (!window['pdfjsLib']) return;
+
+      resetPreview();
+      showPreviewPanel();
+
+      previewFilename.textContent = file.name || 'document.pdf';
+      previewSize.textContent = humanFileSize(file.size);
+
+      const uint8 = new Uint8Array(await file.arrayBuffer());
+      let doc;
+      try {
+        doc = await pdfjsLib.getDocument({ data: uint8 }).promise;
+      } catch (e) {
+        console.error('PDF preview error:', e);
+        resetPreview();
+        return;
+      }
+
+      const pageCount = doc.numPages || 0;
+      previewPagesCount.textContent = pageCount + (pageCount === 1 ? ' page' : ' pages');
+
+      const maxPages = 1;
+      for (let i = 1; i <= maxPages; i++) {
+        const page = await doc.getPage(i);
+        const viewport = page.getViewport({ scale: 0.3 });
+
+        const wrapper = document.createElement('div');
+        wrapper.className =
+          'thumb-wrapper relative bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden flex flex-col';
+        wrapper.dataset.pageNumber = String(i);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        canvas.className =
+          'w-full h-auto block bg-slate-100 transition-transform duration-200 origin-center';
+
+        const pageLabel = document.createElement('div');
+        pageLabel.className =
+          'px-1.5 py-1 text-[10px] text-slate-500 border-t border-slate-100 bg-slate-50 text-right';
+        pageLabel.textContent = 'Page ' + i;
+
+        wrapper.appendChild(canvas);
+        wrapper.appendChild(pageLabel);
+        previewThumbnails.appendChild(wrapper);
+
+        const ctx = canvas.getContext('2d');
+        await page.render({ canvasContext: ctx, viewport }).promise;
+      }
+
+      // PRO++: page controls + crop + watermark
+      setupPageControls();
+      if (toolSlug === 'crop-pdf') {
+        setupCropBoxes();
+      }
+      if (toolSlug === 'rotate-pdf') {
+        applyRotationToThumbnails(currentRotation);
+      }
+      if (toolSlug === 'watermark-pdf' && watermarkInput) {
+        applyWatermarkOverlay(watermarkInput.value);
+      }
+    }
+
+    function handleFilesSelected(files) {
+      if (!files || !files.length) return;
+      currentFile = files[0]; // For preview we use the first file only
+
+      if (fileInfo) {
+        fileInfo.classList.remove('hidden');
+        fileInfo.textContent = files.length === 1
+          ? `${currentFile.name} · ${humanFileSize(currentFile.size)}`
+          : `${files.length} files selected · previewing first`;
+      }
+
+      // Copy the file(s) into the real form file input
+      const dt = new DataTransfer();
+      for (let f of files) {
+        dt.items.add(f);
+      }
+      hiddenFileInput.files = dt.files;
+
+      const isPdf = currentFile.type === 'application/pdf' ||
+        currentFile.name.toLowerCase().endsWith('.pdf');
+      if (isPdf) {
+        renderPdfPreview(currentFile);
+      } else {
+        resetPreview();
+        showPreviewPanel();
+        previewFilename.textContent = currentFile.name;
+        previewSize.textContent = humanFileSize(currentFile.size);
+        previewPagesCount.textContent = 'Preview not available for this file type';
+      }
+    }
+
+    // Upload area click -> trigger input (FIX: avoid double dialog)
+    if (uploadArea && fileInput) {
+      uploadArea.addEventListener('click', function (e) {
+        // If the click already originated on the real input, don't trigger another click
+        if (e.target === fileInput) return;
+        fileInput.click();
+      });
+
+      uploadArea.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        uploadArea.classList.add('border-violet-400', 'bg-violet-50/40');
+      });
+
+      uploadArea.addEventListener('dragleave', function (e) {
+        e.preventDefault();
+        uploadArea.classList.remove('border-violet-400', 'bg-violet-50/40');
+      });
+
+      uploadArea.addEventListener('drop', function (e) {
+        e.preventDefault();
+        uploadArea.classList.remove('border-violet-400', 'bg-violet-50/40');
+        const files = e.dataTransfer.files;
+        if (files && files.length) {
+          fileInput.files = files;
+          handleFilesSelected(files);
+        }
+      });
+
+      fileInput.addEventListener('change', function (e) {
+        const files = e.target.files;
+        if (files && files.length) {
+          handleFilesSelected(files);
+        }
+      });
+    }
+
+    // Compression label updates
+    if (compressionSlider && compressionLabel) {
+      const updateCompressionLabel = (val) => {
+        let text = 'Balanced';
+        if (val === '1') text = 'High quality';
+        if (val === '3') text = 'Smallest file';
+        compressionLabel.textContent = text;
+      };
+      updateCompressionLabel(compressionSlider.value);
+      compressionSlider.addEventListener('input', function (e) {
+        updateCompressionLabel(e.target.value);
+      });
+    }
+
+    // Rotation logic
+    if (toolSlug === 'rotate-pdf' && rotationSlider && rotationLabel && rotationAngleInput) {
+      const syncRotation = (angle) => {
+        currentRotation = angle;
+        rotationSlider.value = angle;
+        rotationLabel.textContent = angle + '°';
+        rotationAngleInput.value = angle;
+        applyRotationToThumbnails(angle);
+      };
+
+      rotationSlider.addEventListener('input', function (e) {
+        const angle = parseInt(e.target.value, 10) || 0;
+        syncRotation(angle);
+      });
+
+      rotateButtons.forEach((btn) => {
+        btn.addEventListener('click', function () {
+          const dir = parseInt(btn.dataset.direction, 10) || 0;
+          let angle = (currentRotation + dir) % 360;
+          if (angle < 0) angle += 360;
+          const allowed = [0, 90, 180, 270];
+          angle = allowed.reduce((prev, curr) =>
+            Math.abs(curr - angle) < Math.abs(prev - angle) ? curr : prev
+          );
+          syncRotation(angle);
+        });
+      });
+
+      if (rotationResetBtn) {
+        rotationResetBtn.addEventListener('click', function () {
+          syncRotation(0);
+        });
+      }
+    }
+
+    // Watermark overlay preview
+    if (toolSlug === 'watermark-pdf' && watermarkInput) {
+      watermarkInput.addEventListener('input', function () {
+        applyWatermarkOverlay(watermarkInput.value);
+      });
+    }
+
+    // Reset preview button
+    if (previewResetBtn) {
+      previewResetBtn.addEventListener('click', function () {
+        if (currentFile) {
+          const isPdf = currentFile.type === 'application/pdf' ||
+            currentFile.name.toLowerCase().endsWith('.pdf');
+          if (isPdf) {
+            renderPdfPreview(currentFile);
+          } else {
+            resetPreview();
+            showPreviewPanel();
+            previewFilename.textContent = currentFile.name;
+            previewSize.textContent = humanFileSize(currentFile.size);
+            previewPagesCount.textContent = 'Preview not available for this file type';
+          }
+        } else {
+          resetPreview();
+        }
+      });
+    }
+
+    function collectPageOrderAndDeletes() {
+      const wrappers = previewThumbnails.querySelectorAll('.thumb-wrapper');
+      const order = [];
+      const deleted = [];
+      wrappers.forEach(w => {
+        const pageNumber = parseInt(w.dataset.pageNumber, 10);
+        const includeCheckbox = w.querySelector('.page-include-checkbox');
+        if (includeCheckbox && includeCheckbox.checked) {
+          order.push(pageNumber);
+        } else {
+          deleted.push(pageNumber);
+        }
+      });
+      if (hiddenPageOrder) {
+        hiddenPageOrder.value = order.join(',');
+      }
+      if (hiddenDeletedPages) {
+        hiddenDeletedPages.value = deleted.join(',');
+      }
+    }
+
+    function collectCropRegions() {
+      if (toolSlug !== 'crop-pdf' || !hiddenCropRegions) return;
+      const wrappers = previewThumbnails.querySelectorAll('.thumb-wrapper');
+      const result = {};
+      wrappers.forEach(w => {
+        const pageNumber = parseInt(w.dataset.pageNumber, 10);
+        const box = w.querySelector('.crop-box');
+        const canvas = w.querySelector('canvas');
+        if (!box || !canvas) return;
+
+        const wRect = w.getBoundingClientRect();
+        const bRect = box.getBoundingClientRect();
+
+        // relative to wrapper
+        const x = (bRect.left - wRect.left) / wRect.width;
+        const y = (bRect.top - wRect.top) / wRect.height;
+        const width = bRect.width / wRect.width;
+        const height = bRect.height / wRect.height;
+
+        result[pageNumber] = {
+          x: Math.max(0, Math.min(1, x)),
+          y: Math.max(0, Math.min(1, y)),
+          width: Math.max(0, Math.min(1, width)),
+          height: Math.max(0, Math.min(1, height))
+        };
+      });
+      hiddenCropRegions.value = JSON.stringify(result);
+    }
+
+    // Before submit: copy visible advanced controls into hidden fields
+    if (form) {
+      form.addEventListener('submit', function (e) {
+        if (!hiddenFileInput.files || !hiddenFileInput.files.length) {
+          e.preventDefault();
+          alert('Please upload a file first.');
+          return;
+        }
+
+        if (compressionSlider && hiddenCompressionLevel) {
+          hiddenCompressionLevel.value = compressionSlider.value;
+        }
+        if (pagesInput && hiddenPages) {
+          hiddenPages.value = pagesInput.value;
+        }
+        if (passwordInput && hiddenPassword) {
+          hiddenPassword.value = passwordInput.value;
+        }
+        if (watermarkInput && hiddenWatermarkText) {
+          hiddenWatermarkText.value = watermarkInput.value;
+        }
+        if (keepFilenameCheckbox && hiddenKeepFilename) {
+          hiddenKeepFilename.value = keepFilenameCheckbox.checked ? '1' : '0';
+        }
+
+        // PRO++ extras
+        collectPageOrderAndDeletes();
+        collectCropRegions();
+      });
     }
   });
-
-});
 </script>
 
 {% endblock %}
