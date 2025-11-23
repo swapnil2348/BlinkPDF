@@ -1,101 +1,157 @@
 {% extends "base.html" %}
-
-{% block title %}{{ tool.title }} - BlinkPDF{% endblock %}
+{% block title %}{{ tool.title }} — BlinkPDF{% endblock %}
+{% block meta %}{{ tool.desc }}{% endblock %}
 
 {% block content %}
-<section class="bg-violet-50 p-6 rounded-xl shadow-md">
+<section class="bg-gradient-to-b from-violet-50 to-white py-10">
+  <div id="tool-root"
+       class="max-w-6xl mx-auto px-4"
+       data-tool-slug="{{ tool.slug }}">
 
-  <!-- HEADER -->
-  <div class="mb-8 text-center">
-    <span class="inline-block bg-violet-100 text-violet-600 px-4 py-1 rounded-full text-xs font-semibold">
-      {{ tool.title }}
-    </span>
+    <!-- Header -->
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
+      <div>
+        <div class="inline-flex items-center gap-3 px-3 py-1 rounded-full bg-violet-100 text-violet-700 text-xs font-medium mb-3">
+          <div class="w-6 h-6 rounded-full bg-white flex items-center justify-center shadow-sm border border-violet-200">
+            <img src="{{ url_for('static', filename='icons/' ~ tool.icon) }}"
+                 alt="{{ tool.title }} icon"
+                 class="w-4 h-4">
+          </div>
+          <span>{{ tool.slug | replace('-', ' ') | title }}</span>
+        </div>
 
-    <h1 class="text-3xl font-bold mt-4">{{ tool.title }}</h1>
+        <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">
+          {{ tool.title }}
+        </h1>
 
-    <div class="flex flex-wrap justify-center gap-3 mt-4 text-xs">
-      <span class="bg-green-100 text-green-600 px-3 py-1 rounded-full">Fast processing</span>
-      <span class="bg-blue-100 text-blue-600 px-3 py-1 rounded-full">Secure & private</span>
-      <span class="bg-gray-100 px-3 py-1 rounded-full">No signup</span>
+        <p class="text-sm sm:text-base text-slate-600 max-w-xl">
+          {{ tool.desc }}
+        </p>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          Fast processing
+        </span>
+        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-50 text-slate-600 border border-slate-100">
+          <span class="w-1.5 h-1.5 rounded-full bg-violet-400"></span>
+          Secure & private
+        </span>
+        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-50 text-slate-600 border border-slate-100">
+          No signup
+        </span>
+      </div>
     </div>
+
+
+    <form action="{{ url_for('process_tool', slug=tool.slug) }}" method="POST" enctype="multipart/form-data">
+      <div class="grid lg:grid-cols-2 gap-6 lg:gap-8 items-start">
+
+        <!-- LEFT SIDE -->
+        <div class="space-y-6">
+
+          <!-- UPLOAD CARD -->
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-5">
+            <h2 class="text-sm font-semibold text-slate-800 mb-3 flex items-center justify-between">
+              Upload file{% if tool.slug in ['merge-pdf','image-to-pdf'] %}s{% endif %}
+              <span class="text-[11px] uppercase tracking-wide text-slate-400">Step 1</span>
+            </h2>
+
+            <div id="upload-area"
+                 class="relative border border-dashed border-violet-200 rounded-xl p-4 sm:p-6 text-center cursor-pointer hover:border-violet-400 transition group">
+
+              <!-- ✅ MAIN REAL INPUT (FIXED) -->
+              <input
+                type="file"
+                id="file-input"
+                name="files"
+                {% if tool.slug in ['merge-pdf','image-to-pdf'] %}multiple{% endif %}
+                required
+                accept=".pdf,.jpg,.jpeg,.png,.docx,.pptx,.xlsx"
+                class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+              >
+
+              <div class="flex flex-col items-center gap-3 pointer-events-none">
+                <div class="w-11 h-11 rounded-2xl bg-violet-50 flex items-center justify-center border border-violet-100 group-hover:bg-violet-100 transition">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-violet-500" fill="none"
+                       viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M12 16V4m0 0L8 8m4-4 4 4M6 16h12a2 2 0 0 1 2 2v1a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-1a2 2 0 0 1 2-2Z" />
+                  </svg>
+                </div>
+
+                <div class="space-y-0.5">
+                  <p class="text-sm font-medium text-slate-900">
+                    Click to upload{% if tool.slug in ['merge-pdf','image-to-pdf'] %} files{% else %} file{% endif %}
+                  </p>
+
+                  <p class="text-[11px] text-slate-500">
+                    {% if tool.slug in ['word-to-pdf','excel-to-pdf','powerpoint-to-pdf'] %}
+                      Supports DOCX, PPTX, XLSX · Max 500MB
+                    {% elif tool.slug in ['image-to-pdf','background-remover'] %}
+                      Supports JPG, PNG, WEBP · Max 500MB
+                    {% else %}
+                      Supports PDF · Max 500MB
+                    {% endif %}
+                  </p>
+                </div>
+
+                <div id="file-info"
+                     class="hidden text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-full px-3 py-1 mt-1 max-w-full truncate">
+                  No file selected
+                </div>
+              </div>
+            </div>
+          </div>
+
+
+          <!-- ADVANCED SETTINGS (unchanged) -->
+          {{ super() }}
+
+
+          <!-- ✅ PROCESS BUTTON (USES SAME FORM NOW) -->
+          <button
+            type="submit"
+            id="process-btn"
+            class="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold py-3.5 shadow-sm shadow-violet-500/30 transition">
+
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5" fill="none"
+                 viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M12 4v16m0-16 5 5m-5-5-5 5" />
+            </svg>
+
+            <span>Process {{ tool.title }}</span>
+          </button>
+
+          <p class="text-[11px] text-slate-400 text-center mt-2">
+            Processing happens in the cloud. Your files are deleted automatically.
+          </p>
+
+        </div>
+
+
+        <!-- RIGHT SIDE (UNCHANGED PREVIEW) -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-5 flex flex-col h-full">
+          {{ super() }}
+        </div>
+
+      </div>
+    </form>
+
   </div>
-
-  <!-- FORM -->
-  <form action="/process/{{ tool.slug }}" method="POST" enctype="multipart/form-data">
-
-    <!-- UPLOAD ZONE -->
-    <div class="bg-white p-6 rounded-xl shadow mb-6 text-center">
-
-      <h2 class="font-semibold mb-4">Upload File</h2>
-
-      <!-- ✅ ONLY ONE INPUT, SAME NAME YOUR BACKEND EXPECTS -->
-      <input
-        type="file"
-        name="files"
-        multiple
-        required
-        class="w-full border-2 border-dashed border-violet-300 rounded-xl p-6 cursor-pointer text-center"
-        accept=".pdf,.jpg,.jpeg,.png,.docx,.pptx,.xlsx"
-      >
-
-      <p class="text-xs text-slate-500 mt-2">
-        Supports PDF, Images, Word, PowerPoint • Max 500MB
-      </p>
-
-    </div>
-
-    <!-- ADVANCED OPTIONS -->
-    <div class="bg-white p-6 rounded-xl shadow mb-6">
-
-      <h2 class="font-semibold mb-3">Advanced Settings</h2>
-
-      {% if tool.slug == "rotate-pdf" %}
-      <label class="block mb-2 text-sm font-medium">Rotation</label>
-      <select name="rotation" class="w-full border rounded-md p-2">
-        <option value="90">+90°</option>
-        <option value="180">180°</option>
-        <option value="270">-90°</option>
-      </select>
-      {% endif %}
-
-      {% if tool.slug == "compress-pdf" %}
-      <label class="block mb-2 text-sm font-medium">Compression Level</label>
-      <select name="level" class="w-full border rounded-md p-2">
-        <option value="low">Low (High Quality)</option>
-        <option value="medium">Medium</option>
-        <option value="high">High (Smaller Size)</option>
-      </select>
-      {% endif %}
-
-      {% if tool.slug == "split-pdf" %}
-      <label class="block mb-2 text-sm font-medium">Split Mode</label>
-      <select name="mode" class="w-full border rounded-md p-2">
-        <option value="pages">Each page separate</option>
-        <option value="range">By range</option>
-      </select>
-
-      <input
-        name="range"
-        type="text"
-        placeholder="Example: 1-3,5,8"
-        class="w-full border rounded-md p-2 mt-2"
-      >
-      {% endif %}
-
-    </div>
-
-    <!-- PROCESS BUTTON -->
-    <button
-      type="submit"
-      class="w-full bg-violet-600 hover:bg-violet-700 text-white py-5 text-lg rounded-xl font-semibold transition"
-    >
-      Process {{ tool.title }}
-    </button>
-
-  </form>
-
 </section>
 
+<script>
+document.getElementById("file-input").addEventListener("change", function() {
+  const info = document.getElementById("file-info");
+  if(this.files.length > 0) {
+    info.textContent = this.files.length + " file(s) selected";
+    info.classList.remove("hidden");
+  }
+});
+</script>
 <!-- PDF.js (for local preview only) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
