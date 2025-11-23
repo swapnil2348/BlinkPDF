@@ -110,7 +110,6 @@ def tool_page(slug):
 # -------------------------------------------------------------------
 @app.route("/process/<slug>", methods=["POST"])
 def process_tool(slug):
-
     tool = SLUG_TO_TOOL.get(slug)
     if not tool:
         return abort(404)
@@ -119,18 +118,42 @@ def process_tool(slug):
         return "No files uploaded", 400
 
     files = request.files.getlist("files")
-    if len(files) == 0:
+    if not files or all(f.filename == "" for f in files):
         return "No files selected", 400
 
-    file_paths = []
-    for file in files:
-        if file.filename == "":
+    saved_paths = []
+    for f in files:
+        if not f or f.filename == "":
             continue
+        filename = secure_filename(f"{uuid.uuid4().hex}_{f.filename}")
+        filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+        f.save(filepath)
+        saved_paths.append(filepath)
 
-        filename = secure_filename(f"{uuid.uuid4().hex}_{file.filename}")
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-        file_paths.append(filepath)
+    if not saved_paths:
+        return "No valid files after upload", 400
+
+    try:
+        output_path, download_name, mimetype = process_pdf_tool(
+            slug=slug,
+            input_paths=saved_paths,
+            output_dir=app.config["OUTPUT_FOLDER"],
+            form=request.form,
+        )
+    except RequestEntityTooLarge:
+        # handled by errorhandler
+        raise
+    except Exception as e:
+        # log server-side and show friendly message
+        print(f"[ERROR] processing tool {slug}: {e}", flush=True)
+        return f"Error processing file for {slug}.", 500
+
+    return send_file(
+        output_path,
+        as_attachment=True,
+        download_name=download_name,
+        mimetype=mimetype,
+    )
 
     # ---------------- MERGE PDF ----------------
     if slug == "merge-pdf":
