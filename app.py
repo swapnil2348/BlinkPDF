@@ -106,14 +106,11 @@ def index():
 def ai_tools_page():
     return render_template("tool_page.html", tools=AI_TOOLS)
 
-@app.route("/tool/<slug>")
-def tool_page(slug):
-    slug = SLUG_ALIASES.get(slug, slug)
-
-    if slug not in SLUG_TO_TOOL:
+@app.route("/tool/<tool_slug>")
+def tool_page(tool_slug):
+    tool = SLUG_TO_TOOL.get(tool_slug)
+    if not tool:
         abort(404)
-
-    tool = SLUG_TO_TOOL[slug]
     return render_template("tool_page.html", tool=tool)
 
 
