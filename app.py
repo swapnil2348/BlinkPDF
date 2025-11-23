@@ -129,12 +129,9 @@ def tool_page(slug):
     return render_template("tool_page.html", tool=tool)
 
 
-@app.route("/process/<tool_slug>", methods=["POST"])
-def process_tool(tool_slug):
-    tool_slug = SLUG_ALIASES.get(tool_slug, tool_slug)
-
-    if tool_slug not in SLUG_TO_TOOL:
-        return jsonify({"error": "Tool not found"}), 404
+@app.route("/process/<slug>", methods=["POST"])
+def process_tool(slug):
+    tool = SLUG_TO_TOOL.get(slug)
 
     if "file" not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
