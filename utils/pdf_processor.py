@@ -275,36 +275,41 @@ class PDFProcessor:
             writer.write(f)
         return out_path, "split.pdf", "application/pdf"
 
-    def compress_pdf(self, path: str, level: str) -> Tuple[str, str, str]:
+    def compress_pdf(self, path: str, level: str):
         """
-        Real compression using PyMuPDF.
+        Real compression using PyMuPDF
+        Compatible with older PyMuPDF versions (NO image_quality crash)
+        """
 
-        level:
-          - "1" / "high"   -> high quality, larger file
-          - "2" / "medium" -> balanced (default)
-          - "3" / "low"    -> smallest file, more aggressive
-        """
-        lv = str(level or "").strip().lower()
-        if lv in ("1", "high", "hq"):
-            image_quality = 95
-        elif lv in ("3", "low", "smallest", "max"):
-            image_quality = 60
-        else:
-            image_quality = 80  # "2" / medium
+        level = str(level or "").strip()
+
+        # Adjust quality using matrix scale instead of image_quality flag
+        if level == "1":        # High quality
+        scale = 1.0
+        elif level == "3":      # Strong compression
+        scale = 0.6
+        else:                    # Balanced (2)
+        scale = 0.8
 
         doc = fitz.open(path)
-        out_path = self._tmp_file(".pdf")
-        # These options really compress content; can be tuned further.
-        doc.save(
-            out_path,
-            garbage=4,
-            deflate=True,
-            clean=True,
-            linear=True,
-            deflate_images=True,
-            image_quality=image_quality,
+        new_doc = fitz.open()
+
+        for page in doc:
+        mat = fitz.Matrix(scale, scale)
+        pix = page.get_pixmap(matrix=mat)
+
+        new_page = new_doc.new_page(width=pix.width, height=pix.height)
+        new_page.insert_image(
+            fitz.Rect(0, 0, pix.width, pix.height),
+            pixmap=pix
         )
+
+        out_path = self._tmp_file(".pdf")
+        new_doc.save(out_path, deflate=True, garbage=4, clean=True)
+
         doc.close()
+        new_doc.close()
+
         return out_path, "compressed.pdf", "application/pdf"
 
     def optimize_pdf(self, path: str) -> Tuple[str, str, str]:
