@@ -91,12 +91,22 @@ def file_too_large(e):
 def index():
     return render_template("index.html", tools=TOOLS, ai_tools=AI_TOOLS)
 
-
 @app.route("/ai-tools")
 def ai_tools_page():
     return render_template("ai_tools.html", ai_tools=AI_TOOLS)
 
+@app.route("/privacy")
+def privacy():
+    return render_template("privacy.html")
 
+@app.route("/contact")
+def contact():
+    return render_template("contact.html")
+    
+@app.route("/terms")
+def contact():
+    return render_template("terms.html")
+    
 @app.route("/tool/<slug>")
 def tool_page(slug):
     tool = SLUG_TO_TOOL.get(slug)
