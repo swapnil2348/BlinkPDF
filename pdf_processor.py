@@ -847,8 +847,7 @@ class PDFProcessor:
         pdf_doc.close()
         return out_path, dl_name
 
-    def _excel_to_p
-df(self, files: List[str], options: Dict) -> Tuple[str, str]:
+    def _excel_to_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
         """
         Render basic Excel text into PDF using reportlab.
         """
@@ -916,8 +915,7 @@ df(self, files: List[str], options: Dict) -> Tuple[str, str]:
         doc.close()
         return out_path, dl_name
 
-    def _powerpoint_to_p
-df(self, files: List[str], options: Dict) -> Tuple[str, str]:
+    def _powerpoint_to_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
         """
         Convert PPTX slide text into a simple PDF (not full visual render).
         """
