@@ -29,7 +29,7 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "blinkpdf-dev-key")
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500MB limit
 
-pdf_processor = PDFProcessor(OUTPUT_FOLDER)
+pdf_processor = PDFProcessor()
 
 # -----------------------------------------------------------------------------
 # Tool registry (single source of truth)
