@@ -102,6 +102,9 @@ SLUG_ALIASES = {
 def index():
     return render_template("index.html", tools=TOOLS, ai_tools=AI_TOOLS)
 
+@app.route("/ai-tools")
+def ai_tools_page():
+    return render_template("tool_page.html", tools=AI_TOOLS)
 
 @app.route("/tool/<slug>")
 def tool_page(slug):
