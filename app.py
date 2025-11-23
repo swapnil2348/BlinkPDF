@@ -1,510 +1,428 @@
 import os
-import uuid
-import base64
-import tempfile
 import random
-import requests
-import json
+from datetime import datetime
 
 from flask import (
     Flask,
     render_template,
     request,
-    send_file,
     redirect,
     url_for,
+    send_file,
+    abort,
     flash,
-    jsonify,
-    send_from_directory,
 )
 
-from werkzeug.utils import secure_filename
 from utils.pdf_processor import PDFProcessor, PDFProcessorError
 
-# ---------------- AI CONFIG ----------------
-HF_TOKEN = os.getenv("HF_TOKEN")
-
-
-def ask_ai(prompt, max_tokens=500):
-    if not HF_TOKEN:
-        return "AI Error: HF_TOKEN not configured on server."
-
-    headers = {
-        "Authorization": f"Bearer {HF_TOKEN}"
-    }
-
-    payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": max_tokens,
-            "temperature": 0.7,
-            "do_sample": True,
-        },
-    }
-
-    response = requests.post(
-        "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1",
-        headers=headers,
-        json=payload,
-        timeout=60,
-    )
-
-    if response.status_code != 200:
-        return "AI Error: " + response.text
-
-    result = response.json()
-    try:
-        return result[0]["generated_text"]
-    except Exception:
-        return str(result)
-
-
-# ---------------- APP SETUP ----------------
-
-app = Flask(__name__)
-app.secret_key = "dev-secret"
-
+# -----------------------------------------------------------------------------
+# Flask app & config
+# -----------------------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
-PROCESSED_FOLDER = os.path.join(BASE_DIR, "processed")
+OUTPUT_FOLDER = os.path.join(BASE_DIR, "processed")
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(PROCESSED_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config["PROCESSED_FOLDER"] = PROCESSED_FOLDER
-app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500MB
+app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "blinkpdf-dev-key")
+app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500MB limit
 
-tempfile.tempdir = os.path.abspath(UPLOAD_FOLDER)
+pdf_processor = PDFProcessor(OUTPUT_FOLDER)
 
-pdf = PDFProcessor()
-
-# ---------------- TOOLS ----------------
-
+# -----------------------------------------------------------------------------
+# Tool registry (single source of truth)
+# -----------------------------------------------------------------------------
 TOOLS = [
-    {'slug': 'merge-pdf', 'title': 'Merge PDF',
-     'desc': 'Combine multiple PDF documents easily.', 'icon': 'merge-pdf.svg'},
-    {'slug': 'split-pdf', 'title': 'Split PDF',
-     'desc': 'Extract or split PDF pages.', 'icon': 'split-pdf.svg'},
-    {'slug': 'compress-pdf', 'title': 'Compress PDF',
-     'desc': 'Reduce PDF file size smartly.', 'icon': 'compress-pdf.svg'},
-    {'slug': 'optimize-pdf', 'title': 'Optimize PDF',
-     'desc': 'Advanced cleaning and optimization.', 'icon': 'optimize-pdf.svg'},
-    {'slug': 'rotate-pdf', 'title': 'Rotate PDF',
-     'desc': 'Rotate pages of your PDF.', 'icon': 'rotate-pdf.svg'},
-    {'slug': 'watermark-pdf', 'title': 'Watermark PDF',
-     'desc': 'Add watermark text or image.', 'icon': 'watermark-pdf.svg'},
-    {'slug': 'number-pdf', 'title': 'Number Pages',
-     'desc': 'Add page numbers anywhere.', 'icon': 'number-pdf.svg'},
-    {'slug': 'protect-pdf', 'title': 'Protect PDF',
-     'desc': 'Encrypt with password.', 'icon': 'protect-pdf.svg'},
-    {'slug': 'unlock-pdf', 'title': 'Unlock PDF',
-     'desc': 'Remove password restrictions.', 'icon': 'unlock-pdf.svg'},
-    {'slug': 'repair-pdf', 'title': 'Repair PDF',
-     'desc': 'Fix damaged or corrupted PDFs.', 'icon': 'repair-pdf.svg'},
-    {'slug': 'organize-pdf', 'title': 'Organize PDF',
-     'desc': 'Reorder, delete, rotate pages visually.', 'icon': 'organize-pdf.svg'},
-    {'slug': 'sign-pdf', 'title': 'Sign PDF',
-     'desc': 'Add digital signatures or images.', 'icon': 'sign-pdf.svg'},
-    {'slug': 'annotate-pdf', 'title': 'Annotate PDF',
-     'desc': 'Highlight, underline or comment.', 'icon': 'annotate-pdf.svg'},
-    {'slug': 'redact-pdf', 'title': 'Redact PDF',
-     'desc': 'Blackout sensitive information.', 'icon': 'redact-pdf.svg'},
-    {'slug': 'pdf-to-word', 'title': 'PDF to Word',
-     'desc': 'Convert PDF into editable Word documents.', 'icon': 'pdf-to-word.svg'},
-    {'slug': 'word-to-pdf', 'title': 'Word to PDF',
-     'desc': 'Convert DOC/DOCX to PDF.', 'icon': 'word-to-pdf.svg'},
-    {'slug': 'pdf-to-image', 'title': 'PDF to Image',
-     'desc': 'Convert PDF pages to images.', 'icon': 'pdf-to-image.svg'},
-    {'slug': 'image-to-pdf', 'title': 'Image to PDF',
-     'desc': 'Merge images into a PDF.', 'icon': 'image-to-pdf.svg'},
-    {'slug': 'pdf-to-excel', 'title': 'PDF to Excel',
-     'desc': 'Extract tables into Excel.', 'icon': 'pdf-to-excel.svg'},
-    {'slug': 'excel-to-pdf', 'title': 'Excel to PDF',
-     'desc': 'Convert spreadsheets to PDF.', 'icon': 'excel-to-pdf.svg'},
-    {'slug': 'pdf-to-powerpoint', 'title': 'PDF to PowerPoint',
-     'desc': 'Convert PDF pages into PPTX slides.', 'icon': 'pdf-to-powerpoint.svg'},
-    {'slug': 'powerpoint-to-pdf', 'title': 'PowerPoint to PDF',
-     'desc': 'Convert PPTX files to PDF.', 'icon': 'powerpoint-to-pdf.svg'},
-    {'slug': 'ocr-pdf', 'title': 'OCR PDF',
-     'desc': 'Convert scanned PDFs into searchable text.', 'icon': 'ocr-pdf.svg'},
-    {'slug': 'extract-text', 'title': 'Extract Text',
-     'desc': 'Extract plain text from PDF.', 'icon': 'extract-text.svg'},
-    {'slug': 'extract-images', 'title': 'Extract Images',
-     'desc': 'Extract embedded images from PDF.', 'icon': 'extract-images.svg'},
-    {'slug': 'deskew-pdf', 'title': 'Deskew PDF',
-     'desc': 'Auto-straighten scanned pages.', 'icon': 'deskew-pdf.svg'},
-    {'slug': 'crop-pdf', 'title': 'Crop PDF',
-     'desc': 'Crop pages with custom controls.', 'icon': 'crop-pdf.svg'},
-    {'slug': 'resize-pdf', 'title': 'Resize PDF',
-     'desc': 'Change page dimensions or scale.', 'icon': 'resize-pdf.svg'},
-    {'slug': 'flatten-pdf', 'title': 'Flatten PDF',
-     'desc': 'Flatten forms and annotations.', 'icon': 'flatten-pdf.svg'},
-    {'slug': 'metadata-editor', 'title': 'Metadata Editor',
-     'desc': 'Edit title, author, keywords and other metadata.', 'icon': 'metadata-editor.svg'},
-    {'slug': 'fill-forms', 'title': 'Fill PDF Forms',
-     'desc': 'Fill interactive PDF fields easily.', 'icon': 'fill-forms.svg'},
-    {'slug': 'background-remover', 'title': 'Remove Background',
-     'desc': 'Remove noisy backgrounds from scanned pages.', 'icon': 'background-remover.svg'},
+    # Core PDF
+    {
+        "slug": "compress-pdf",
+        "title": "Compress PDF",
+        "desc": "Reduce PDF file size while keeping good quality.",
+        "icon": "compress-pdf.svg",
+        "category": "pdf",
+    },
+    {
+        "slug": "merge-pdf",
+        "title": "Merge PDF",
+        "desc": "Combine multiple PDF files into one.",
+        "icon": "merge-pdf.svg",
+        "category": "pdf",
+    },
+    {
+        "slug": "split-pdf",
+        "title": "Split PDF",
+        "desc": "Split a PDF into multiple smaller PDFs.",
+        "icon": "split-pdf.svg",
+        "category": "pdf",
+    },
+    {
+        "slug": "extract-pages",
+        "title": "Extract Pages",
+        "desc": "Extract selected pages into a new PDF.",
+        "icon": "extract-pages.svg",
+        "category": "pdf",
+    },
+    {
+        "slug": "organize-pdf",
+        "title": "Organize PDF",
+        "desc": "Reorder, delete and arrange PDF pages.",
+        "icon": "organize-pdf.svg",
+        "category": "pdf",
+    },
+    {
+        "slug": "rotate-pdf",
+        "title": "Rotate PDF",
+        "desc": "Rotate pages in your PDF permanently.",
+        "icon": "rotate-pdf.svg",
+        "category": "pdf",
+    },
+    {
+        "slug": "crop-pdf",
+        "title": "Crop PDF",
+        "desc": "Visually crop margins and content in your PDF.",
+        "icon": "crop-pdf.svg",
+        "category": "pdf",
+    },
+    {
+        "slug": "resize-pdf",
+        "title": "Resize PDF",
+        "desc": "Change the page size of your PDF.",
+        "icon": "resize-pdf.svg",
+        "category": "pdf",
+    },
+    {
+        "slug": "flatten-pdf",
+        "title": "Flatten PDF",
+        "desc": "Flatten annotations and forms for better compatibility.",
+        "icon": "flatten-pdf.svg",
+        "category": "pdf",
+    },
+    {
+        "slug": "number-pdf",
+        "title": "Number PDF Pages",
+        "desc": "Add page numbers to your PDF.",
+        "icon": "number-pdf.svg",
+        "category": "pdf",
+    },
+    {
+        "slug": "protect-pdf",
+        "title": "Protect PDF",
+        "desc": "Add password protection to your PDF.",
+        "icon": "protect-pdf.svg",
+        "category": "security",
+    },
+    {
+        "slug": "unlock-pdf",
+        "title": "Unlock PDF",
+        "desc": "Remove password from your PDF (if you know it).",
+        "icon": "unlock-pdf.svg",
+        "category": "security",
+    },
+    {
+        "slug": "watermark-pdf",
+        "title": "Watermark PDF",
+        "desc": "Add text watermark to every page.",
+        "icon": "watermark-pdf.svg",
+        "category": "edit",
+    },
+    {
+        "slug": "metadata-editor",
+        "title": "Edit PDF Metadata",
+        "desc": "Change title, author and other metadata.",
+        "icon": "metadata-editor.svg",
+        "category": "edit",
+    },
+    {
+        "slug": "fill-forms",
+        "title": "Fill & Flatten Forms",
+        "desc": "Fill PDF forms and flatten them.",
+        "icon": "fill-forms.svg",
+        "category": "edit",
+    },
+    {
+        "slug": "redact-pdf",
+        "title": "Redact PDF",
+        "desc": "Permanently hide sensitive content.",
+        "icon": "redact-pdf.svg",
+        "category": "edit",
+    },
+    {
+        "slug": "extract-text",
+        "title": "Extract Text",
+        "desc": "Extract all text from your PDF.",
+        "icon": "extract-text.svg",
+        "category": "convert",
+    },
+    {
+        "slug": "extract-images",
+        "title": "Extract Images",
+        "desc": "Pull out all images embedded in your PDF.",
+        "icon": "extract-images.svg",
+        "category": "convert",
+    },
+    {
+        "slug": "repair-pdf",
+        "title": "Repair PDF",
+        "desc": "Try to fix corrupted or damaged PDFs.",
+        "icon": "repair-pdf.svg",
+        "category": "utility",
+    },
+    {
+        "slug": "deskew-pdf",
+        "title": "Deskew PDF",
+        "desc": "Straighten scanned PDF pages.",
+        "icon": "deskew-pdf.svg",
+        "category": "utility",
+    },
+
+    # PDF ↔ Office / Images
+    {
+        "slug": "pdf-to-word",
+        "title": "PDF to Word",
+        "desc": "Convert PDF to editable DOCX.",
+        "icon": "pdf-to-word.svg",
+        "category": "convert",
+    },
+    {
+        "slug": "pdf-to-excel",
+        "title": "PDF to Excel",
+        "desc": "Convert tables in PDF to XLSX.",
+        "icon": "pdf-to-excel.svg",
+        "category": "convert",
+    },
+    {
+        "slug": "pdf-to-powerpoint",
+        "title": "PDF to PowerPoint",
+        "desc": "Convert PDF slides to PPTX.",
+        "icon": "pdf-to-powerpoint.svg",
+        "category": "convert",
+    },
+    {
+        "slug": "word-to-pdf",
+        "title": "Word to PDF",
+        "desc": "Convert DOCX to high-quality PDF.",
+        "icon": "word-to-pdf.svg",
+        "category": "convert",
+    },
+    {
+        "slug": "excel-to-pdf",
+        "title": "Excel to PDF",
+        "desc": "Convert spreadsheets to PDF.",
+        "icon": "excel-to-pdf.svg",
+        "category": "convert",
+    },
+    {
+        "slug": "powerpoint-to-pdf",
+        "title": "PowerPoint to PDF",
+        "desc": "Convert presentations to PDF.",
+        "icon": "powerpoint-to-pdf.svg",
+        "category": "convert",
+    },
+    {
+        "slug": "image-to-pdf",
+        "title": "Image to PDF",
+        "desc": "Convert JPG, PNG, WEBP to PDF.",
+        "icon": "image-to-pdf.svg",
+        "category": "convert",
+    },
+
+    # AI tools
+    {
+        "slug": "ai-editor",
+        "title": "AI PDF Editor",
+        "desc": "Edit your PDF content with AI assistance.",
+        "icon": "ai-editor.svg",
+        "category": "ai",
+        "is_ai": True,
+    },
+    {
+        "slug": "ai-summarizer",
+        "title": "AI Summarizer",
+        "desc": "Summarize long PDFs into key points.",
+        "icon": "ai-summarizer.svg",
+        "category": "ai",
+        "is_ai": True,
+    },
+    {
+        "slug": "ai-chat",
+        "title": "AI Chat with PDF",
+        "desc": "Ask questions and chat with your PDF.",
+        "icon": "ai-chat.svg",
+        "category": "ai",
+        "is_ai": True,
+    },
+    {
+        "slug": "ai-table",
+        "title": "AI Table Extractor",
+        "desc": "Smartly extract tables from PDFs.",
+        "icon": "ai-table.svg",
+        "category": "ai",
+        "is_ai": True,
+    },
+    {
+        "slug": "ai-translate",
+        "title": "AI Translate PDF",
+        "desc": "Translate PDF content into any language.",
+        "icon": "ai-translate.svg",
+        "category": "ai",
+        "is_ai": True,
+    },
+
+    # Image tools
+    {
+        "slug": "background-remover",
+        "title": "Background Remover",
+        "desc": "Remove image background using AI.",
+        "icon": "background-remover.svg",
+        "category": "image",
+    },
 ]
 
-# ---------------- AI TOOLS LIST ----------------
-
-AI_TOOLS = [
-    {"slug": "ai-editor", "title": "AI PDF Editor", "desc": "Live editor",
-     "url": "/ai/editor", "icon": "ai-editor.svg"},
-    {"slug": "ai-summarizer", "title": "AI Summarizer", "desc": "Smart summary",
-     "url": "/ai/summarizer-page", "icon": "ai-summarizer.svg"},
-    {"slug": "ai-chat", "title": "Chat with PDF", "desc": "Ask questions",
-     "url": "/ai/chat-page", "icon": "ai-chat.svg"},
-    {"slug": "ai-translate", "title": "AI Translator", "desc": "Translate text",
-     "url": "/ai/translate-page", "icon": "ai-translate.svg"},
-    {"slug": "ai-table-extract", "title": "AI Table Extractor", "desc": "Extract tables",
-     "url": "/ai/table-page", "icon": "ai-table.svg"},
-]
+TOOLS_BY_SLUG = {t["slug"]: t for t in TOOLS}
 
 
-def get_random_tools(n=10):
-    combined = TOOLS + AI_TOOLS
-    return random.sample(combined, min(n, len(combined)))
+def get_tool_or_404(slug: str) -> dict:
+    tool = TOOLS_BY_SLUG.get(slug)
+    if not tool:
+        abort(404)
+    return tool
 
 
-@app.context_processor
-def inject_globals():
-    return dict(tools=TOOLS, ai_tools=AI_TOOLS, random_tools=get_random_tools(10))
+def get_random_tools(current_slug: str, limit: int = 8):
+    candidates = [t for t in TOOLS if t["slug"] != current_slug]
+    if len(candidates) <= limit:
+        return candidates
+    return random.sample(candidates, limit)
 
 
-# ---------------- BASIC PAGES ----------------
-
-@app.route('/check-token')
-def check_token():
-    token = os.environ.get("HR_TOKEN")
-    if token:
-        return "✅ HR_TOKEN is working"
-    else:
-        return "❌ HR_TOKEN not found"
-
-
+# -----------------------------------------------------------------------------
+# Routes
+# -----------------------------------------------------------------------------
 @app.route("/")
 def index():
-    return render_template("index.html")
-
-
-@app.route("/ai-tools")
-def ai_tools_page():
-    return render_template("ai_tools.html")
-
-
-@app.route("/privacy")
-def privacy():
-    return render_template("privacy.html")
-
-
-@app.route("/terms")
-def terms():
-    return render_template("terms.html")
-
-
-@app.route("/contact")
-def contact():
-    return render_template("contact.html")
+    """Homepage with full tools grid."""
+    # You can group tools by category in the template if you want
+    return render_template("index.html", tools=TOOLS)
 
 
 @app.route("/tool/<slug>")
 def tool_page(slug):
-    tool = next((t for t in TOOLS if t["slug"] == slug), None)
-    if not tool:
-        flash("Tool not found", "error")
-        return redirect(url_for("index"))
-    return render_template("tool_page.html", tool=tool)
-
-
-# Extra AI *page* routes so cards like /ai/chat-page work
-@app.route("/ai/summarizer-page")
-def ai_summarizer_page():
-    return render_template("ai_summarizer.html")
-
-
-@app.route("/ai/chat-page")
-def ai_chat_page():
-    return render_template("ai_chat.html")
-
-
-@app.route("/ai/translate-page")
-def ai_translate_page():
-    return render_template("ai_translate.html")
-
-
-@app.route("/ai/table-page")
-def ai_table_page():
-    return render_template("ai_table_extract.html")
-
-
-# ---------------- GOOGLE VERIFICATION ----------------
-
-@app.route('/googlefe495bc7600f4865.html')
-def google_verify():
-    return send_from_directory(
-        os.path.dirname(os.path.abspath(__file__)),
-        'googlefe495bc7600f4865.html'
-    )
-
-
-# ---------------- STATIC UPLOAD ACCESS (USED BY AI EDITOR) ----------------
-
-@app.route("/uploads/<path:filename>")
-def uploaded_file(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename)
-
-
-# ---------------- AI ROUTES (ONLINE) ----------------
-
-@app.route("/ai/editor")
-def ai_editor():
-    return render_template("ai_editor.html")
-
-
-@app.route("/ai/editor/upload", methods=["POST"])
-def ai_editor_upload():
-    f = request.files.get("file")
-    if not f:
-        return jsonify({"error": "No file uploaded"}), 400
-
-    filename = f"{uuid.uuid4().hex}_{secure_filename(f.filename)}"
-    path = os.path.join(UPLOAD_FOLDER, filename)
-    f.save(path)
-    return jsonify({"url": url_for("uploaded_file", filename=filename)})
-
-
-@app.route("/ai/summarizer", methods=["POST"])
-def ai_summarizer():
-    f = request.files.get("file")
-    if not f:
-        return jsonify({"error": "No file uploaded"}), 400
-
-    import PyPDF2
-    reader = PyPDF2.PdfReader(f)
-    text = "".join([p.extract_text() or "" for p in reader.pages])
-
-    summary = ask_ai(f"Summarize this PDF:\n\n{text[:6000]}", 300)
-    return jsonify({"summary": summary})
-
-
-# Simple chat-with-PDF route
-@app.route("/ai/chat", methods=["POST"])
-def ai_chat():
-    f = request.files.get("file")
-    question = request.form.get("question", "").strip()
-    if not f or not question:
-        return jsonify({"error": "File and question are required."}), 400
-
-    import PyPDF2
-    reader = PyPDF2.PdfReader(f)
-    text = "".join([p.extract_text() or "" for p in reader.pages])
-
-    prompt = (
-        "You are a helpful assistant that answers questions about PDFs.\n\n"
-        f"PDF content (truncated):\n{text[:6000]}\n\n"
-        f"Question: {question}\n\nAnswer in clear, short paragraphs."
-    )
-    answer = ask_ai(prompt, 400)
-    return jsonify({"answer": answer})
-
-
-@app.route("/ai/translate", methods=["POST"])
-def ai_translate():
-    text = request.form.get("text", "").strip()
-    target_lang = request.form.get("target_lang", "English")
-    if not text:
-        return jsonify({"error": "No text provided."}), 400
-
-    prompt = (
-        f"Translate the following text into {target_lang}.\n\n"
-        f"Text:\n{text}"
-    )
-    translated = ask_ai(prompt, 400)
-    return jsonify({"translated": translated})
-
-
-@app.route("/ai/table-extract", methods=["POST"])
-def ai_table_extract():
-    f = request.files.get("file")
-    if not f:
-        return jsonify({"error": "No file uploaded"}), 400
-
-    import PyPDF2
-    reader = PyPDF2.PdfReader(f)
-    text = "".join([p.extract_text() or "" for p in reader.pages])
-
-    prompt = (
-        "Extract all tabular data from this PDF and present it as markdown tables.\n\n"
-        f"{text[:6000]}"
-    )
-    tables = ask_ai(prompt, 600)
-    return jsonify({"tables": tables})
-
-
-# ---------------- PRO++ TOOL PIPELINE (BACKEND FOR tool_page.html) ----------------
-
-def _save_uploads(files):
-    """Save uploaded FileStorage list to disk and return list of paths."""
-    paths = []
-    for f in files:
-        if not f or not f.filename:
-            continue
-        filename = secure_filename(f.filename)
-        if not filename:
-            continue
-        uid = uuid.uuid4().hex[:8]
-        full_path = os.path.join(UPLOAD_FOLDER, f"{uid}_{filename}")
-        f.save(full_path)
-        paths.append(full_path)
-    return paths
-
-
-def _map_options(slug, form):
-    """
-    Map form fields from tool_page.html into the option keys
-    expected by PDFProcessor.process().
-
-    This is where we wire advanced options:
-    - compression_level
-    - rotation_angle
-    - page_order / deleted_pages
-    - crop regions / margins
-    - OCR language
-    - metadata fields
-    - form fill JSON
-    """
-    options = {}
-
-    # Common fields (page ranges)
-    pages = form.get("pages", "").strip()
-    if pages:
-        options["pages"] = pages
-        options["page_range"] = pages  # alias, used by split internally
-
-    # Password (protect/unlock)
-    password = form.get("password", "").strip()
-    if password:
-        options["password"] = password
-        options["new_password"] = password  # for protect
-
-    # Watermark text
-    watermark_text = form.get("watermark_text", "").strip()
-    if watermark_text:
-        options["watermark_text"] = watermark_text
-
-    # Keep filename flag (used here only)
-    keep_filename = form.get("keep_filename_hidden")
-    if keep_filename == "1":
-        options["keep_filename"] = True
-
-    # -------- Tool specific mapping --------
-
-    if slug == "compress-pdf":
-        # Slider sends 1,2,3 – pass through to processor
-        level_raw = form.get("compression_level", "2")
-        options["compression_level"] = level_raw
-
-    if slug == "rotate-pdf":
-        # Frontend sends rotation_angle; processor expects 'angle'
-        angle_raw = form.get("rotation_angle", "0")
-        try:
-            options["angle"] = int(angle_raw)
-        except ValueError:
-            options["angle"] = 0
-
-    if slug == "watermark-pdf":
-        options.setdefault("watermark_text", watermark_text or "CONFIDENTIAL")
-        options["watermark_opacity"] = form.get("watermark_opacity", "0.15")
-        options["watermark_position"] = form.get("watermark_position", "center")
-
-    if slug == "organize-pdf":
-        order = form.get("page_order", "").strip()
-        delete = form.get("delete_pages", "").strip()
-        if order:
-            options["page_order"] = order
-        if delete:
-            options["delete_pages"] = delete
-
-    # PRO++ crop (regions JSON has priority, margins fallback)
-    if slug == "crop-pdf":
-        regions = form.get("crop_regions", "").strip()
-        if regions:
-            options["crop_regions"] = regions
-        else:
-            options["crop_top"] = form.get("crop_top", "0")
-            options["crop_right"] = form.get("crop_right", "0")
-            options["crop_bottom"] = form.get("crop_bottom", "0")
-            options["crop_left"] = form.get("crop_left", "0")
-
-    if slug == "resize-pdf":
-        options["page_size"] = form.get("page_size", "A4")
-
-    if slug == "ocr-pdf":
-        options["ocr_lang"] = form.get("ocr_lang", "eng")
-
-    if slug == "metadata-editor":
-        for key in ["title", "author", "subject", "keywords", "creator", "producer"]:
-            val = form.get(key)
-            if val:
-                options[key] = val
-
-    if slug == "fill-forms":
-        raw = form.get("form_data_json", "{}")
-        options["form_data_json"] = raw
-
-    # Background remover (no extra options)
-    return options
+    """Single tool page with live preview."""
+    tool = get_tool_or_404(slug)
+    random_tools = get_random_tools(slug)
+    return render_template("tool_page.html", tool=tool, random_tools=random_tools)
 
 
 @app.route("/tool/<slug>/process", methods=["POST"])
 def process_tool(slug):
-    # Validate tool exists
-    tool = next((t for t in TOOLS if t["slug"] == slug), None)
-    if not tool:
-        flash("Unknown tool.", "error")
-        return redirect(url_for("index"))
+    """
+    Unified processing endpoint for ALL tools.
 
-    # Files
+    - Accepts uploaded file(s)
+    - Collects all advanced options (compression, pages, rotation, crop, etc.)
+    - Delegates to PDFProcessor.process()
+    - Streams back the processed file
+    """
+    tool = get_tool_or_404(slug)
+
+    # File(s)
     files = request.files.getlist("file")
-    if not files or not files[0].filename:
-        flash("Please upload at least one file.", "error")
+    if not files or not files[0] or files[0].filename == "":
+        flash("Please upload a file first.", "error")
         return redirect(url_for("tool_page", slug=slug))
 
-    input_paths = _save_uploads(files)
-    if not input_paths:
-        flash("Failed to save uploaded files.", "error")
+    # Only pass non-empty FileStorage objects
+    valid_files = [f for f in files if f and f.filename]
+    if not valid_files:
+        flash("Please upload a file first.", "error")
         return redirect(url_for("tool_page", slug=slug))
 
-    # Options mapped from advanced settings
-    options = _map_options(slug, request.form)
+    # Advanced / PRO+++ options from hidden fields
+    form = request.form
+
+    options = {
+        # common UI options
+        "compression_level": form.get("compression_level") or form.get("hidden_compression_level"),
+        "pages": form.get("pages") or form.get("hidden_pages"),
+        "password": form.get("password") or form.get("hidden_password"),
+        "watermark_text": form.get("watermark_text") or form.get("hidden_watermark_text"),
+        "keep_filename": form.get("keep_filename_hidden") == "1"
+        or form.get("keep_filename") == "1",
+        # rotate
+        "rotation_angle": form.get("rotation_angle") or form.get("rotation_angle_input"),
+        # PRO++ organize / crop
+        "page_order": form.get("page_order") or form.get("hidden_page_order"),
+        "deleted_pages": form.get("deleted_pages") or form.get("hidden_deleted_pages"),
+        "crop_regions": form.get("crop_regions") or form.get("hidden_crop_regions"),
+    }
 
     try:
-        out_path, download_name, mimetype = pdf.process(slug, input_paths, options)
-
-        # Optional: respect "keep original filename" where it makes sense
-        if options.get("keep_filename") and files:
-            base = os.path.splitext(secure_filename(files[0].filename))[0]
-            ext = os.path.splitext(download_name)[1] or ".pdf"
-            download_name = f"{base}{ext}"
-
-        return send_file(
-            out_path,
-            as_attachment=True,
-            download_name=download_name,
-            mimetype=mimetype
+        # Delegate to the PDFProcessor (handles all slugs internally)
+        output_path, download_name, mimetype = pdf_processor.process(
+            slug,
+            valid_files,
+            options,
         )
     except PDFProcessorError as e:
+        app.logger.error(f"Processing error ({slug}): {e}")
         flash(str(e), "error")
         return redirect(url_for("tool_page", slug=slug))
     except Exception as e:
-        # Last-resort error – don’t leak stacktrace to user
-        print("Unexpected error in process_tool:", e)
-        flash("Something went wrong while processing your file.", "error")
+        app.logger.exception(f"Unexpected processing error for {slug}")
+        flash("Something went wrong while processing your file. Please try again.", "error")
         return redirect(url_for("tool_page", slug=slug))
 
+    if not output_path or not os.path.exists(output_path):
+        flash("Processing failed. Output file was not created.", "error")
+        return redirect(url_for("tool_page", slug=slug))
 
+    # Stream file back to user, then let your background cleanup handle deletion
+    return send_file(
+        output_path,
+        as_attachment=True,
+        download_name=download_name,
+        mimetype=mimetype or "application/octet-stream",
+    )
+
+
+# -----------------------------------------------------------------------------
+# Error handlers
+# -----------------------------------------------------------------------------
+@app.errorhandler(404)
+def not_found(e):
+    return render_template("error.html", code=404, message="Page not found"), 404
+
+
+@app.errorhandler(413)
+def file_too_large(e):
+    return (
+        render_template(
+            "error.html",
+            code=413,
+            message="File too large. Maximum allowed size is 500MB.",
+        ),
+        413,
+    )
+
+
+@app.errorhandler(500)
+def server_error(e):
+    app.logger.exception("Internal server error")
+    return (
+        render_template(
+            "error.html",
+            code=500,
+            message="Something went wrong on our side. Please try again.",
+        ),
+        500,
+    )
+
+
+# -----------------------------------------------------------------------------
+# Dev entry point
+# -----------------------------------------------------------------------------
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    debug_mode = os.environ.get("FLASK_DEBUG", "1") == "1"
+    app.run(host="0.0.0.0", port=5000, debug=debug_mode)
