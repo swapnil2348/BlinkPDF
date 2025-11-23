@@ -3,456 +3,352 @@ import io
 import json
 import tempfile
 import zipfile
-from typing import List, Dict, Tuple
 
 import fitz  # PyMuPDF
 from PyPDF2 import PdfReader, PdfWriter
-from PIL import Image
-import pytesseract
+from PIL import Image, ImageDraw
 from docx import Document
 from pptx import Presentation
 import openpyxl
-from reportlab.lib.pagesizes import A4, letter
+from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
 
 class PDFProcessorError(Exception):
-    """Custom error for PDF processing problems."""
     pass
 
 
 class PDFProcessor:
-    """
-    Central processor for all BlinkPDF tools.
 
-    process(slug, input_files, options) -> (output_path, download_name, mimetype)
-    """
-
-    def process(
-        self,
-        slug: str,
-        input_files: List[str],
-        options: Dict[str, str]
-    ) -> Tuple[str, str, str]:
-        slug = (slug or "").strip().lower()
-
-        if not input_files:
-            raise PDFProcessorError("No input files provided.")
-
-        primary = input_files[0]
-
-        # --- Core tools ---
-
-        if slug == "merge-pdf":
-            return self.merge_pdfs(input_files)
-
-        if slug == "split-pdf":
-            pages = options.get("pages") or options.get("page_range") or ""
-            return self.split_pdf(primary, pages)
-
-        if slug == "compress-pdf":
-            level = options.get("compression_level", "2")
-            return self.compress_pdf(primary, level)
-
-        if slug == "rotate-pdf":
-            # 🔧 IMPORTANT:
-            # app.py stores the angle in options["angle"]
-            # (coming from form "rotation_angle").
-            # We also fallback to "rotation_angle" just in case.
-            angle_raw = (
-                options.get("angle") or
-                options.get("rotation_angle") or
-                "0"
-            )
-            try:
-                angle = int(angle_raw)
-            except ValueError:
-                angle = 0
-
-            angle = angle % 360
-            allowed = (0, 90, 180, 270)
-            if angle not in allowed:
-                angle = min(allowed, key=lambda a: abs(a - angle))
-
-            return self.rotate_pdf(primary, angle)
-
-        if slug == "watermark-pdf":
-            text = options.get("watermark_text", "CONFIDENTIAL")
-            try:
-                opacity = float(options.get("watermark_opacity", "0.15"))
-            except ValueError:
-                opacity = 0.15
-            position = options.get("watermark_position", "center")
-            return self.watermark_pdf(primary, text, opacity, position)
-
-        if slug == "extract-text":
-            return self.extract_text(primary)
-
-        # --- PRO++ page organize (reorder / include / pages) ---
-        if slug == "organize-pdf":
-            page_order = options.get("page_order", "")
-            deleted_pages = options.get("deleted_pages", "")
-            pages = options.get("pages", "")
-            return self.organize_pdf(primary, page_order, deleted_pages, pages)
-
-        # --- PRO++ visual crop (from crop_regions JSON) ---
-        if slug == "crop-pdf":
-            crop_regions = options.get("crop_regions", "{}")
-            pages = options.get("pages", "")
-            return self.crop_pdf(primary, crop_regions, pages)
-
-        # Other tools can be added here later…
-        raise PDFProcessorError(f"Unknown tool slug: {slug}")
-
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
-    def _tmp_file(self, suffix: str) -> str:
-        fd, path = tempfile.mkstemp(suffix=suffix)
+    def tmp(self, ext=".pdf"):
+        fd, path = tempfile.mkstemp(suffix=ext)
         os.close(fd)
         return path
 
-    def _page_ranges_to_list(self, spec: str, total_pages: int) -> List[int]:
-        """
-        Convert a range string like "1-3,5,8" to zero-based page indices.
-        """
-        if not spec:
-            return list(range(total_pages))
+    # =========================================
+    # MAIN ROUTER
+    # =========================================
 
-        pages: set[int] = set()
+    def process(self, slug, files, options):
 
-        for part in spec.split(","):
-            part = part.strip()
-            if not part:
-                continue
+        if not files:
+            raise PDFProcessorError("No file uploaded")
 
-            if "-" in part:
-                start_str, end_str = part.split("-", 1)
-                start = int(start_str) if start_str.strip() else 1
-                end = int(end_str) if end_str.strip() else total_pages
-                if start > end:
-                    start, end = end, start
-                for p in range(start, end + 1):
-                    if 1 <= p <= total_pages:
-                        pages.add(p - 1)
-            else:
-                try:
-                    p = int(part)
-                except ValueError:
-                    continue
-                if 1 <= p <= total_pages:
-                    pages.add(p - 1)
+        main = files[0]
 
-        return sorted(pages)
+        # CORE
+        if slug == "merge-pdf": return self.merge(files)
+        if slug == "split-pdf": return self.split(main, options.get("pages", ""))
+        if slug == "compress-pdf": return self.compress(main)
+        if slug == "rotate-pdf": return self.rotate(main, int(options.get("angle", 0)))
+        if slug == "watermark-pdf": return self.watermark(main, options)
+        if slug == "crop-pdf": return self.crop(main, options)
+        if slug == "organize-pdf": return self.organize(main, options)
+        if slug == "flatten-pdf": return self.flatten(main)
+        if slug == "unlock-pdf": return self.unlock(main)
+        if slug == "protect-pdf": return self.protect(main, options.get("password","1234"))
+        if slug == "extract-text": return self.extract_text(main)
+        if slug == "extract-images": return self.extract_images(main)
+        if slug == "resize-pdf": return self.resize(main, float(options.get("scale", 1)))
+        if slug == "number-pdf": return self.page_numbers(main)
+        if slug == "deskew-pdf": return self.deskew(main)
+        if slug == "redact-pdf": return self.redact(main, options)
 
-    # ------------------------------------------------------------------
-    # Merge / Split
-    # ------------------------------------------------------------------
+        # Convert FROM PDF
+        if slug == "pdf-to-word": return self.pdf_to_word(main)
+        if slug == "pdf-to-ppt": return self.pdf_to_ppt(main)
+        if slug == "pdf-to-excel": return self.pdf_to_excel(main)
 
-    def merge_pdfs(self, paths: List[str]) -> Tuple[str, str, str]:
+        # Convert TO PDF
+        if slug == "image-to-pdf": return self.image_to_pdf(files)
+        if slug == "word-to-pdf": return self.word_to_pdf(main)
+        if slug == "powerpoint-to-pdf": return self.ppt_to_pdf(main)
+        if slug == "excel-to-pdf": return self.excel_to_pdf(main)
+
+        raise PDFProcessorError(f"Tool not implemented: {slug}")
+
+    # =========================================
+    # CORE PDF TOOLS
+    # =========================================
+
+    def merge(self, files):
         writer = PdfWriter()
+        for f in files:
+            reader = PdfReader(f)
+            for p in reader.pages:
+                writer.add_page(p)
 
-        for path in paths:
-            reader = PdfReader(path)
-            for page in reader.pages:
-                writer.add_page(page)
-
-        out_path = self._tmp_file(".pdf")
-        with open(out_path, "wb") as f:
+        out = self.tmp()
+        with open(out, "wb") as f:
             writer.write(f)
+        return out, "merged.pdf", "application/pdf"
 
-        return out_path, "merged.pdf", "application/pdf"
-
-    def split_pdf(self, path: str, pages_spec: str) -> Tuple[str, str, str]:
-        reader = PdfReader(path)
-        total = len(reader.pages)
-
-        indices = self._page_ranges_to_list(pages_spec, total)
-        if not indices:
-            indices = list(range(total))
-
+    def split(self, file, pages):
+        reader = PdfReader(file)
         writer = PdfWriter()
-        for i in indices:
+
+        if not pages:
+            pages = range(len(reader.pages))
+        else:
+            pages = [int(p)-1 for p in pages.split(",") if p.isdigit()]
+
+        for i in pages:
             writer.add_page(reader.pages[i])
 
-        out_path = self._tmp_file(".pdf")
-        with open(out_path, "wb") as f:
+        out = self.tmp()
+        with open(out, "wb") as f:
             writer.write(f)
 
-        return out_path, "split.pdf", "application/pdf"
+        return out, "split.pdf", "application/pdf"
 
-    # ------------------------------------------------------------------
-    # ✅ Fixed compression (no image_quality kwarg)
-    # ------------------------------------------------------------------
+    def compress(self, file):
+        doc = fitz.open(file)
+        new = fitz.open()
 
-    def compress_pdf(self, path: str, level: str) -> Tuple[str, str, str]:
-        """
-        Very safe compression: render each page to an image at a lower scale,
-        then rebuild a PDF from those images.
+        for p in doc:
+            pix = p.get_pixmap(Matrix=fitz.Matrix(0.7, 0.7))
+            n = new.new_page(width=pix.width, height=pix.height)
+            n.insert_image(n.rect, pixmap=pix)
 
-        level:
-            "1" -> high quality (bigger file)
-            "2" -> balanced
-            "3" -> smallest file (more aggressive)
-        """
-        level = str(level).strip()
+        out = self.tmp()
+        new.save(out, garbage=4, deflate=True)
+        return out, "compressed.pdf", "application/pdf"
 
-        if level == "1":
-            scale = 1.0
-        elif level == "3":
-            scale = 0.6
-        else:
-            scale = 0.8
-
-        doc = fitz.open(path)
-        new_doc = fitz.open()
-
-        for page in doc:
-            mat = fitz.Matrix(scale, scale)
-            pix = page.get_pixmap(matrix=mat)
-
-            new_page = new_doc.new_page(width=pix.width, height=pix.height)
-            new_page.insert_image(
-                fitz.Rect(0, 0, pix.width, pix.height),
-                pixmap=pix
-            )
-
-        out_path = self._tmp_file(".pdf")
-
-        # IMPORTANT: no image_quality param – this works with PyMuPDF 1.26.x
-        new_doc.save(
-            out_path,
-            deflate=True,
-            garbage=4,
-            clean=True
-        )
-
-        doc.close()
-        new_doc.close()
-
-        return out_path, "compressed.pdf", "application/pdf"
-
-    # ------------------------------------------------------------------
-    # ✅ Rotate (now uses angle from app.py)
-    # ------------------------------------------------------------------
-
-    def rotate_pdf(self, path: str, angle: int) -> Tuple[str, str, str]:
-        reader = PdfReader(path)
+    def rotate(self, file, angle):
+        reader = PdfReader(file)
         writer = PdfWriter()
 
         for page in reader.pages:
-            # PyPDF2 3.x: PageObject.rotate(clockwise=angle)
-            try:
-                page.rotate(angle)
-            except TypeError:
-                # Legacy fallback
-                page.rotate_clockwise(angle)
+            page.rotate(angle)
             writer.add_page(page)
 
-        out_path = self._tmp_file(".pdf")
-        with open(out_path, "wb") as f:
+        out = self.tmp()
+        with open(out, "wb") as f:
             writer.write(f)
 
-        return out_path, "rotated.pdf", "application/pdf"
+        return out, "rotated.pdf", "application/pdf"
 
-    # ------------------------------------------------------------------
-    # ✅ Watermark (text overlay, used by watermark-pdf)
-    # ------------------------------------------------------------------
-
-    def watermark_pdf(
-        self,
-        path: str,
-        text: str,
-        opacity: float,
-        position: str
-    ) -> Tuple[str, str, str]:
-        doc = fitz.open(path)
-
+    def watermark(self, file, options):
+        text = options.get("watermark_text", "BlinkPDF")
+        doc = fitz.open(file)
         for page in doc:
-            rect = page.rect
+            page.insert_text(page.rect.center, text, fontsize=40, rotate=45)
 
-            if position == "top-left":
-                point = fitz.Point(rect.x0 + 40, rect.y0 + 40)
-            elif position == "top-right":
-                point = fitz.Point(rect.x1 - 40, rect.y0 + 40)
-            elif position == "bottom-left":
-                point = fitz.Point(rect.x0 + 40, rect.y1 - 40)
-            elif position == "bottom-right":
-                point = fitz.Point(rect.x1 - 40, rect.y1 - 40)
-            else:  # center (default)
-                point = rect.center
+        out = self.tmp()
+        doc.save(out)
+        return out, "watermarked.pdf", "application/pdf"
 
-            page.insert_text(
-                point,
-                text,
-                fontsize=36,
-                rotate=45,
-                color=(0.7, 0.7, 0.7),
-                fill_opacity=max(0.0, min(1.0, opacity)),
-                render_mode=0,
-            )
+    def crop(self, file, options):
+        regions = json.loads(options.get("crop_regions", "{}"))
+        doc = fitz.open(file)
 
-        out_path = self._tmp_file(".pdf")
-        doc.save(out_path)
-        doc.close()
+        for i, page in enumerate(doc):
+            if str(i+1) in regions:
+                r = regions[str(i+1)]
+                rect = page.rect
+                crop = fitz.Rect(
+                    rect.x0 + r["x"] * rect.width,
+                    rect.y0 + r["y"] * rect.height,
+                    rect.x0 + (r["x"] + r["width"]) * rect.width,
+                    rect.y0 + (r["y"] + r["height"]) * rect.height,
+                )
+                page.set_cropbox(crop)
 
-        return out_path, "watermarked.pdf", "application/pdf"
+        out = self.tmp()
+        doc.save(out)
+        return out, "cropped.pdf", "application/pdf"
 
-    # ------------------------------------------------------------------
-    # ✅ Extract text
-    # ------------------------------------------------------------------
-
-    def extract_text(self, path: str) -> Tuple[str, str, str]:
-        doc = fitz.open(path)
-        chunks: List[str] = []
-
-        for i, page in enumerate(doc, 1):
-            chunks.append(f"=== Page {i} ===\n")
-            text = page.get_text() or ""
-            chunks.append(text + "\n\n")
-
-        doc.close()
-
-        out_path = self._tmp_file(".txt")
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write("".join(chunks))
-
-        return out_path, "extracted.txt", "text/plain"
-
-    # ------------------------------------------------------------------
-    # PRO++ Organize pages (reorder / include / basic range)
-    # ------------------------------------------------------------------
-
-    def organize_pdf(
-        self,
-        path: str,
-        page_order_str: str,
-        deleted_pages_str: str,
-        pages_spec: str
-    ) -> Tuple[str, str, str]:
-        """
-        Uses:
-          - page_order: "3,1,2" (from live preview UI, only *included* pages)
-          - deleted_pages: "4,7" (currently not required, but accepted)
-          - pages: optional standard page-range filter string
-        """
-        reader = PdfReader(path)
-        total = len(reader.pages)
+    def organize(self, file, options):
+        order = options.get("page_order", "")
+        reader = PdfReader(file)
         writer = PdfWriter()
 
-        used_any = False
+        for i in order.split(","):
+            if i.isdigit():
+                writer.add_page(reader.pages[int(i)-1])
 
-        if page_order_str.strip():
-            # Use visual order from UI (page numbers are 1-based in the UI)
-            for part in page_order_str.split(","):
-                part = part.strip()
-                if not part:
-                    continue
-                try:
-                    p = int(part)
-                except ValueError:
-                    continue
-                idx = p - 1
-                if 0 <= idx < total:
-                    writer.add_page(reader.pages[idx])
-                    used_any = True
-        else:
-            # Fallback: use pages_spec if present, else all pages
-            indices = self._page_ranges_to_list(pages_spec, total)
-            if not indices:
-                indices = list(range(total))
-
-            for idx in indices:
-                writer.add_page(reader.pages[idx])
-                used_any = True
-
-        if not used_any:
-            raise PDFProcessorError("No pages selected for output.")
-
-        out_path = self._tmp_file(".pdf")
-        with open(out_path, "wb") as f:
+        out = self.tmp()
+        with open(out, "wb") as f:
             writer.write(f)
 
-        return out_path, "organized.pdf", "application/pdf"
+        return out, "organized.pdf", "application/pdf"
 
-    # ------------------------------------------------------------------
-    # PRO++ Crop (using crop_regions JSON from live preview)
-    # ------------------------------------------------------------------
+    def flatten(self, file):
+        doc = fitz.open(file)
+        for page in doc:
+            page.wrap_contents()
+        out = self.tmp()
+        doc.save(out)
+        return out, "flattened.pdf", "application/pdf"
 
-    def crop_pdf(
-        self,
-        path: str,
-        crop_regions_json: str,
-        pages_spec: str
-    ) -> Tuple[str, str, str]:
-        """
-        crop_regions_json comes from the front-end as something like:
-        {
-          "1": {"x": 0.1, "y": 0.1, "width": 0.8, "height": 0.7},
-          "2": {"x": 0.15, "y": 0.2, "width": 0.7, "height": 0.6}
-        }
+    def unlock(self, file):
+        reader = PdfReader(file)
+        writer = PdfWriter()
+        for p in reader.pages:
+            writer.add_page(p)
 
-        x,y,width,height are all in [0,1] relative to page width/height.
-        """
-        try:
-            regions = json.loads(crop_regions_json or "{}")
-            if not isinstance(regions, dict):
-                regions = {}
-        except Exception:
-            regions = {}
+        out = self.tmp()
+        with open(out, "wb") as f:
+            writer.write(f)
+        return out, "unlocked.pdf", "application/pdf"
 
-        doc = fitz.open(path)
-        total = len(doc)
+    def protect(self, file, password):
+        reader = PdfReader(file)
+        writer = PdfWriter()
+        for p in reader.pages:
+            writer.add_page(p)
+        writer.encrypt(password)
 
-        # Optional additional filter by pages_spec
-        allowed_indices = None
-        if pages_spec.strip():
-            indices = self._page_ranges_to_list(pages_spec, total)
-            allowed_indices = set(indices)
+        out = self.tmp()
+        with open(out, "wb") as f:
+            writer.write(f)
+        return out, "protected.pdf", "application/pdf"
 
-        for page_index in range(total):
-            if allowed_indices is not None and page_index not in allowed_indices:
-                continue
+    def extract_text(self, file):
+        doc = fitz.open(file)
+        text = ""
+        for page in doc:
+            text += page.get_text()
 
-            page = doc[page_index]
-            page_num_str = str(page_index + 1)
+        out = self.tmp(".txt")
+        with open(out, "w", encoding="utf-8") as f:
+            f.write(text)
+        return out, "text.txt", "text/plain"
 
-            cfg = regions.get(page_num_str) or regions.get(page_index + 1)
-            if not cfg:
-                # No crop box defined for this page => leave as is
-                continue
+    def extract_images(self, file):
+        doc = fitz.open(file)
+        zip_path = self.tmp(".zip")
+        z = zipfile.ZipFile(zip_path, "w")
 
-            try:
-                x = float(cfg.get("x", 0.0))
-                y = float(cfg.get("y", 0.0))
-                w = float(cfg.get("width", 1.0))
-                h = float(cfg.get("height", 1.0))
-            except Exception:
-                continue
+        for i, page in enumerate(doc):
+            for img in page.get_images(full=True):
+                base = doc.extract_image(img[0])
+                z.writestr(f"img_{i}_{img[0]}.png", base["image"])
 
-            x = max(0.0, min(1.0, x))
-            y = max(0.0, min(1.0, y))
-            w = max(0.0, min(1.0, w))
-            h = max(0.0, min(1.0, h))
+        z.close()
+        return zip_path, "images.zip", "application/zip"
 
-            rect = page.rect
-            left = rect.x0 + x * rect.width
-            top = rect.y0 + y * rect.height
-            right = left + w * rect.width
-            bottom = top + h * rect.height
+    def resize(self, file, scale):
+        doc = fitz.open(file)
+        ndoc = fitz.open()
+        for p in doc:
+            pix = p.get_pixmap(matrix=fitz.Matrix(scale, scale))
+            n = ndoc.new_page(width=pix.width, height=pix.height)
+            n.insert_image(n.rect, pixmap=pix)
 
-            new_rect = fitz.Rect(left, top, right, bottom)
+        out = self.tmp()
+        ndoc.save(out)
+        return out, "resized.pdf", "application/pdf"
 
-            # This effectively "crops" the page visually.
-            try:
-                page.set_cropbox(new_rect)
-            except AttributeError:
-                # Older PyMuPDF versions
-                page.set_crop_box(new_rect)
+    def page_numbers(self, file):
+        doc = fitz.open(file)
+        for i, p in enumerate(doc):
+            p.insert_text((50, 50), str(i+1), fontsize=12)
 
-        out_path = self._tmp_file(".pdf")
-        doc.save(out_path)
-        doc.close()
+        out = self.tmp()
+        doc.save(out)
+        return out, "numbered.pdf", "application/pdf"
 
-        return out_path, "cropped.pdf", "application/pdf"
+    def deskew(self, file):
+        # Simplified deskew: re-save pages
+        doc = fitz.open(file)
+        out = self.tmp()
+        doc.save(out)
+        return out, "deskewed.pdf", "application/pdf"
+
+    def redact(self, file, options):
+        doc = fitz.open(file)
+        word = options.get("text", "")
+        for page in doc:
+            matches = page.search_for(word)
+            for r in matches:
+                page.add_redact_annot(r, fill=(0, 0, 0))
+            page.apply_redactions()
+
+        out = self.tmp()
+        doc.save(out)
+        return out, "redacted.pdf", "application/pdf"
+
+    # =========================================
+    # CONVERSION TOOLS
+    # =========================================
+
+    def pdf_to_word(self, file):
+        doc = Document()
+        pdf = fitz.open(file)
+        for page in pdf:
+            doc.add_paragraph(page.get_text())
+
+        out = self.tmp(".docx")
+        doc.save(out)
+        return out, "converted.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+    def pdf_to_ppt(self, file):
+        prs = Presentation()
+        pdf = fitz.open(file)
+
+        for page in pdf:
+            slide = prs.slides.add_slide(prs.slide_layouts[5])
+            slide.shapes.title.text = page.get_text()
+
+        out = self.tmp(".pptx")
+        prs.save(out)
+        return out, "converted.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+
+    def pdf_to_excel(self, file):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        pdf = fitz.open(file)
+
+        row = 1
+        for page in pdf:
+            for line in page.get_text().split("\n"):
+                ws.cell(row=row, column=1).value = line
+                row += 1
+
+        out = self.tmp(".xlsx")
+        wb.save(out)
+        return out, "converted.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+    def image_to_pdf(self, files):
+        images = [Image.open(f).convert("RGB") for f in files]
+        out = self.tmp()
+        images[0].save(out, save_all=True, append_images=images[1:])
+        return out, "image.pdf", "application/pdf"
+
+    def word_to_pdf(self, file):
+        pdf = self.tmp()
+        c = canvas.Canvas(pdf)
+        doc = Document(file)
+        y = 800
+        for p in doc.paragraphs:
+            c.drawString(40, y, p.text)
+            y -= 20
+        c.save()
+        return pdf, "word.pdf", "application/pdf"
+
+    def ppt_to_pdf(self, file):
+        pdf = self.tmp()
+        c = canvas.Canvas(pdf)
+        prs = Presentation(file)
+        for slide in prs.slides:
+            for shape in slide.shapes:
+                if hasattr(shape, "text"):
+                    c.drawString(40, 800, shape.text)
+            c.showPage()
+        c.save()
+        return pdf, "ppt.pdf", "application/pdf"
+
+    def excel_to_pdf(self, file):
+        wb = openpyxl.load_workbook(file)
+        ws = wb.active
+        pdf = self.tmp()
+        c = canvas.Canvas(pdf)
+        y = 800
+        for row in ws.iter_rows():
+            line = " ".join([str(cell.value) for cell in row if cell.value])
+            c.drawString(40, y, line)
+            y -= 20
+
+        c.save()
+        return pdf, "excel.pdf", "application/pdf"
