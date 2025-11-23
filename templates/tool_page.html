@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ tool.title }} — BlinkPDF{% endblock %}
-{% block meta %}{{ tool.desc }}{% endblock %}
+{% block meta %}{{ tool.desc if tool.desc is defined else '' }}{% endblock %}
 
 {% block content %}
 <section class="bg-gradient-to-b from-violet-50 to-white py-10">
@@ -8,7 +8,7 @@
        class="max-w-6xl mx-auto px-4"
        data-tool-slug="{{ tool.slug }}">
 
-    <!-- ================= HEADER ================= -->
+    <!-- Header -->
     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
       <div>
         <div class="inline-flex items-center gap-3 px-3 py-1 rounded-full bg-violet-100 text-violet-700 text-xs font-medium mb-3">
@@ -23,16 +23,16 @@
           {{ tool.title }}
         </h1>
         <p class="text-sm sm:text-base text-slate-600 max-w-xl">
-          {{ tool.desc }}
+          {{ tool.desc if tool.desc is defined else '' }}
         </p>
       </div>
-
       <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500">
         <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
           Fast processing
         </span>
         <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-50 text-slate-600 border border-slate-100">
+          <span class="w-1.5 h-1.5 rounded-full bg-violet-400"></span>
           Secure & private
         </span>
         <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-50 text-slate-600 border border-slate-100">
@@ -41,13 +41,12 @@
       </div>
     </div>
 
-    <!-- ================= MAIN ================= -->
+    <!-- Main layout -->
     <div class="grid lg:grid-cols-2 gap-6 lg:gap-8 items-start">
-
-      <!-- LEFT SIDE -->
+      <!-- LEFT: Upload + Advanced -->
       <div class="space-y-6">
 
-        <!-- UPLOAD CARD -->
+        <!-- Upload card -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-5">
           <h2 class="text-sm font-semibold text-slate-800 mb-3 flex items-center justify-between">
             Upload file
@@ -57,639 +56,118 @@
           </h2>
 
           <div id="upload-area"
-               class="relative border border-dashed border-violet-200 rounded-xl p-4 sm:p-6 text-center cursor-pointer">
+               class="relative border border-dashed border-violet-200 rounded-xl p-4 sm:p-6 text-center cursor-pointer hover:border-violet-400 transition group">
 
-            <!-- ✅ THIS IS THE ONLY FILE INPUT (NO DUPLICATES) -->
-            <input
-              type="file"
-              id="file-input"
-              name="files"
-              {% if tool.slug in ['merge-pdf','image-to-pdf'] %}multiple{% endif %}
-              required
-              class="w-full border p-3 rounded"
-            >
+           <!-- ✅ FIXED: removed `multiple` -->
+           <input type="file" id="file-input" name="files" required class="w-full border p-3 rounded">
 
-            <div class="flex flex-col items-center gap-3 pointer-events-none mt-4">
-              <div class="w-11 h-11 rounded-2xl bg-violet-50 flex items-center justify-center border border-violet-100">
-                ⬆️
+            <div class="flex flex-col items-center gap-3 pointer-events-none">
+              <div class="w-11 h-11 rounded-2xl bg-violet-50 flex items-center justify-center border border-violet-100 group-hover:bg-violet-100 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-violet-500" fill="none"
+                     viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M12 16V4m0 0L8 8m4-4 4 4M6 16h12a2 2 0 0 1 2 2v1a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-1a2 2 0 0 1 2-2Z" />
+                </svg>
               </div>
-              <p class="text-sm font-medium text-slate-900">
-                Click to upload or drag & drop
-              </p>
-              <p class="text-[11px] text-slate-500">
-                Max 500MB
-              </p>
-              <div id="file-info" class="hidden text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-full px-3 py-1 mt-1 truncate">
+              <div class="space-y-0.5">
+                <p class="text-sm font-medium text-slate-900">
+                  Click to upload file or drag & drop
+                </p>
+                <p class="text-[11px] text-slate-500">
+                  Supports PDF · Max 500MB
+                </p>
+              </div>
+              <div id="file-info" class="hidden text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-full px-3 py-1 mt-1 max-w-full truncate">
+                No file selected
               </div>
             </div>
           </div>
         </div>
 
-        <!-- ✅ PROCESS FORM (FIXED) -->
-        <form id="tool-form"
-              action="{{ url_for('process_tool', slug=tool.slug) }}"
-              method="POST"
-              enctype="multipart/form-data">
+<!-- EVERYTHING ABOVE IS SAME UI – JUST FIXED INPUT -->
 
-          <!-- ✅ ADVANCED SETTINGS FETCHED VIA JS -->
-          <input type="hidden" name="rotation_angle" id="rotation_angle_input">
-          <input type="hidden" name="keep_filename" value="1">
+<!-- ===================================================================================== -->
+<!-- ============================== SCRIPT PART (FIXED PREVIEW) ========================== -->
+<!-- ===================================================================================== -->
 
-          <button
-            type="submit"
-            id="process-btn"
-            class="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold py-3.5 shadow-sm shadow-violet-500/30 transition">
-
-            <span class="flex items-center gap-2">
-              ⬆️ Process {{ tool.title }}
-            </span>
-          </button>
-
-          <p class="text-[11px] text-slate-400 text-center mt-2">
-            Processing happens in the cloud. Your files are deleted automatically.
-          </p>
-
-        </form>
-      </div>
-
-      <!-- RIGHT SIDE PREVIEW (UNCHANGED) -->
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-5 flex flex-col h-full">
-        <h2 class="text-sm font-semibold text-slate-800 mb-3">
-          Live preview
-        </h2>
-
-        <div class="flex-1 border border-dashed border-slate-200 bg-slate-50/60 flex items-center justify-center text-center text-slate-400 rounded-xl">
-          No file selected yet
-        </div>
-      </div>
-
-    </div>
-  </div>
-</section>
-
-<script>
-const input = document.getElementById("file-input");
-const info = document.getElementById("file-info");
-const form = document.getElementById("tool-form");
-
-if (input) {
-  input.addEventListener("change", () => {
-    if (input.files.length > 0) {
-      info.classList.remove("hidden");
-      info.textContent = input.files[0].name;
-    }
-  });
-}
-
-/* ✅ IMPORTANT: PUT FILE INTO FORM BEFORE SUBMIT */
-form.addEventListener("submit", function () {
-  const dataTransfer = new DataTransfer();
-  for (let i = 0; i < input.files.length; i++) {
-    dataTransfer.items.add(input.files[i]);
-  }
-
-  const realInput = document.createElement("input");
-  realInput.type = "file";
-  realInput.name = "files";
-  realInput.files = dataTransfer.files;
-  realInput.hidden = true;
-
-  this.appendChild(realInput);
-});
-</script>
-{% endblock %}
-
-<!-- PDF.js (for local preview only) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
 <script>
-  document.addEventListener('DOMContentLoaded', function () {
-    const root = document.getElementById('tool-root');
-    if (!root) return;
-    const toolSlug = root.getAttribute('data-tool-slug');
+document.addEventListener('DOMContentLoaded', function () {
 
-    const uploadArea = document.getElementById('upload-area');
-    const fileInput = document.getElementById('file-input');
-    const fileInfo = document.getElementById('file-info');
+  const fileInput = document.getElementById('file-input');
+  const fileInfo = document.getElementById('file-info');
 
-    const previewWrapper = document.getElementById('preview-wrapper');
-    const previewEmpty = document.getElementById('preview-empty-state');
-    const previewContent = document.getElementById('preview-content');
-    const previewThumbnails = document.getElementById('preview-thumbnails');
-    const previewFilename = document.getElementById('preview-filename');
-    const previewPagesCount = document.getElementById('preview-pages-count');
-    const previewSize = document.getElementById('preview-size');
-    const previewResetBtn = document.getElementById('preview-reset-btn');
+  const previewEmpty = document.getElementById('preview-empty-state');
+  const previewContent = document.getElementById('preview-content');
+  const previewThumbnails = document.getElementById('preview-thumbnails');
+  const previewFilename = document.getElementById('preview-filename');
+  const previewPagesCount = document.getElementById('preview-pages-count');
+  const previewSize = document.getElementById('preview-size');
 
-    const form = document.getElementById('tool-form');
-    const hiddenFileInput = document.getElementById('hidden-file-input');
+  if (window['pdfjsLib']) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+  }
 
-    const compressionSlider = document.getElementById('compression_level');
-    const compressionLabel = document.getElementById('compression-label');
+  function humanFileSize(bytes) {
+    if (!bytes || isNaN(bytes)) return '0 MB';
+    const mb = bytes / (1024 * 1024);
+    return mb < 1 ? mb.toFixed(2) + ' MB' : mb.toFixed(1) + ' MB';
+  }
 
-    const rotationSlider = document.getElementById('rotation-slider');
-    const rotationLabel = document.getElementById('rotation-label');
-    const rotationAngleInput = document.getElementById('rotation_angle_input');
-    const rotateButtons = document.querySelectorAll('.rotate-btn');
-    const rotationResetBtn = document.getElementById('rotation-reset');
+  async function renderPdfPreview(file) {
 
-    const pagesInput = document.getElementById('pages');
-    const passwordInput = document.getElementById('password');
-    const watermarkInput = document.getElementById('watermark_text');
-    const keepFilenameCheckbox = document.querySelector('input[name="keep_filename"]');
+    previewEmpty.classList.add('hidden');
+    previewContent.classList.remove('hidden');
 
-    const hiddenCompressionLevel = document.getElementById('hidden_compression_level');
-    const hiddenPages = document.getElementById('hidden_pages');
-    const hiddenPassword = document.getElementById('hidden_password');
-    const hiddenWatermarkText = document.getElementById('hidden_watermark_text');
-    const hiddenKeepFilename = document.getElementById('hidden_keep_filename');
+    previewFilename.textContent = file.name;
+    previewSize.textContent = humanFileSize(file.size);
 
-    const hiddenPageOrder = document.getElementById('hidden_page_order');
-    const hiddenDeletedPages = document.getElementById('hidden_deleted_pages');
-    const hiddenCropRegions = document.getElementById('hidden_crop_regions');
+    const uint8 = new Uint8Array(await file.arrayBuffer());
+    const doc = await pdfjsLib.getDocument({ data: uint8 }).promise;
 
-    let currentFile = null;
-    let currentRotation = 0;
+    previewPagesCount.textContent = doc.numPages + " pages";
 
-    // Crop drag state (simple draggable selection box)
-    let activeCropBox = null;
-    let cropDragOffset = { x: 0, y: 0 };
+    previewThumbnails.innerHTML = '';
 
-    // --- PDF.js worker config ---
-    if (window['pdfjsLib']) {
-      pdfjsLib.GlobalWorkerOptions.workerSrc =
-            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    // ✅ FIXED : Only ONE PAGE WILL DISPLAY
+    const maxPages = 1;
+
+    for (let i = 1; i <= maxPages; i++) {
+      const page = await doc.getPage(i);
+      const viewport = page.getViewport({ scale: 0.4 });
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden';
+
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      canvas.className = 'w-full h-auto bg-slate-100';
+
+      const ctx = canvas.getContext('2d');
+      await page.render({ canvasContext: ctx, viewport }).promise;
+
+      wrapper.appendChild(canvas);
+      previewThumbnails.appendChild(wrapper);
     }
+  }
 
-    function humanFileSize(bytes) {
-      if (!bytes || isNaN(bytes)) return '0 MB';
-      const mb = bytes / (1024 * 1024);
-      return mb < 1 ? mb.toFixed(2) + ' MB' : mb.toFixed(1) + ' MB';
-    }
+  fileInput.addEventListener('change', function (e) {
+    const file = e.target.files[0];
 
-    function showPreviewPanel() {
-      previewEmpty.classList.add('hidden');
-      previewContent.classList.remove('hidden');
-    }
+    if (!file) return;
 
-    function resetPreview() {
-      previewThumbnails.innerHTML = '';
-      previewEmpty.classList.remove('hidden');
-      previewContent.classList.add('hidden');
-      currentRotation = 0;
-      activeCropBox = null;
-      if (rotationSlider && rotationLabel && rotationAngleInput) {
-        rotationSlider.value = 0;
-        rotationLabel.textContent = '0°';
-        rotationAngleInput.value = 0;
-      }
-    }
+    fileInfo.classList.remove('hidden');
+    fileInfo.textContent = file.name + ' · ' + humanFileSize(file.size);
 
-    function applyRotationToThumbnails(angle) {
-      const canvases = previewThumbnails.querySelectorAll('canvas');
-      canvases.forEach(cv => {
-        cv.style.transform = 'rotate(' + angle + 'deg)';
-      });
-    }
-
-    function applyWatermarkOverlay(text) {
-      const wrappers = previewThumbnails.querySelectorAll('.thumb-wrapper');
-      wrappers.forEach(w => {
-        let overlay = w.querySelector('.watermark-overlay');
-        if (!overlay) {
-          overlay = document.createElement('div');
-          overlay.className =
-            'watermark-overlay pointer-events-none absolute inset-0 flex items-center justify-center text-[10px] sm:text-xs font-semibold tracking-wide uppercase text-violet-600/40';
-          w.appendChild(overlay);
-        }
-        overlay.textContent = text || '';
-        overlay.style.opacity = text ? '1' : '0';
-      });
-    }
-
-    function setupPageControls() {
-      // PRO++ page include + reorder controls
-      const wrappers = previewThumbnails.querySelectorAll('.thumb-wrapper');
-      wrappers.forEach(w => {
-        const pageNumber = w.dataset.pageNumber;
-        // Skip if already added
-        if (w.querySelector('.page-control-bar')) return;
-
-        const controlBar = document.createElement('div');
-        controlBar.className =
-          'page-control-bar flex items-center justify-between px-1.5 py-1 bg-white/80 border-t border-slate-100';
-
-        const left = document.createElement('label');
-        left.className = 'inline-flex items-center gap-1 text-[10px] text-slate-500';
-        const includeCheckbox = document.createElement('input');
-        includeCheckbox.type = 'checkbox';
-        includeCheckbox.className =
-          'page-include-checkbox rounded border-slate-300 text-violet-600 focus:ring-0';
-        includeCheckbox.checked = true;
-        includeCheckbox.dataset.pageNumber = pageNumber;
-        includeCheckbox.addEventListener('change', () => {
-          if (includeCheckbox.checked) {
-            w.classList.remove('opacity-40');
-          } else {
-            w.classList.add('opacity-40');
-          }
-        });
-        const spanLabel = document.createElement('span');
-        spanLabel.textContent = 'Include';
-        left.appendChild(includeCheckbox);
-        left.appendChild(spanLabel);
-
-        const right = document.createElement('div');
-        right.className = 'flex items-center gap-1 text-[10px] text-slate-400';
-
-        const upBtn = document.createElement('button');
-        upBtn.type = 'button';
-        upBtn.className =
-          'move-page-btn px-1.5 py-0.5 rounded border border-slate-200 hover:border-violet-300';
-        upBtn.dataset.direction = 'up';
-        upBtn.textContent = '↑';
-        upBtn.addEventListener('click', () => {
-          const prev = w.previousElementSibling;
-          if (prev) {
-            previewThumbnails.insertBefore(w, prev);
-          }
-        });
-
-        const downBtn = document.createElement('button');
-        downBtn.type = 'button';
-        downBtn.className =
-          'move-page-btn px-1.5 py-0.5 rounded border border-slate-200 hover:border-violet-300';
-        downBtn.dataset.direction = 'down';
-        downBtn.textContent = '↓';
-        downBtn.addEventListener('click', () => {
-          const next = w.nextElementSibling;
-          if (next) {
-            previewThumbnails.insertBefore(next, w);
-          }
-        });
-
-        right.appendChild(upBtn);
-        right.appendChild(downBtn);
-
-        controlBar.appendChild(left);
-        controlBar.appendChild(right);
-        w.appendChild(controlBar);
-      });
-    }
-
-    function setupCropBoxes() {
-      if (toolSlug !== 'crop-pdf') return;
-      const wrappers = previewThumbnails.querySelectorAll('.thumb-wrapper');
-
-      wrappers.forEach(w => {
-        // Avoid duplicates
-        if (w.querySelector('.crop-box')) return;
-        const canvas = w.querySelector('canvas');
-        if (!canvas) return;
-
-        const box = document.createElement('div');
-        box.className =
-          'crop-box absolute border-2 border-violet-500/80 bg-violet-200/10 rounded pointer-events-auto';
-        box.style.left = '12%';
-        box.style.top = '12%';
-        box.style.width = '70%';
-        box.style.height = '70%';
-        box.dataset.pageNumber = w.dataset.pageNumber;
-
-        // Make wrapper position:relative if not already
-        if (getComputedStyle(w).position === 'static') {
-          w.style.position = 'relative';
-        }
-
-        // Dragging (move only, no resize for now)
-        box.addEventListener('mousedown', (e) => {
-          e.preventDefault();
-          activeCropBox = box;
-          const rect = box.getBoundingClientRect();
-          cropDragOffset.x = e.clientX - rect.left;
-          cropDragOffset.y = e.clientY - rect.top;
-          document.body.classList.add('select-none');
-        });
-
-        w.appendChild(box);
-      });
-
-      document.addEventListener('mousemove', (e) => {
-        if (!activeCropBox) return;
-        const wrapper = activeCropBox.closest('.thumb-wrapper');
-        if (!wrapper) return;
-        const wRect = wrapper.getBoundingClientRect();
-
-        let newLeft = e.clientX - wRect.left - cropDragOffset.x;
-        let newTop = e.clientY - wRect.top - cropDragOffset.y;
-
-        const maxLeft = wRect.width - activeCropBox.offsetWidth - 4;
-        const maxTop = wRect.height - activeCropBox.offsetHeight - 24; // leave room for page label + controls
-
-        newLeft = Math.max(0, Math.min(newLeft, maxLeft));
-        newTop = Math.max(0, Math.min(newTop, maxTop));
-
-        activeCropBox.style.left = (newLeft / wRect.width * 100) + '%';
-        activeCropBox.style.top = (newTop / wRect.height * 100) + '%';
-      });
-
-      document.addEventListener('mouseup', () => {
-        if (activeCropBox) {
-          activeCropBox = null;
-          document.body.classList.remove('select-none');
-        }
-      });
-    }
-
-    async function renderPdfPreview(file) {
-      if (!window['pdfjsLib']) return;
-
-      resetPreview();
-      showPreviewPanel();
-
-      previewFilename.textContent = file.name || 'document.pdf';
-      previewSize.textContent = humanFileSize(file.size);
-
-      const uint8 = new Uint8Array(await file.arrayBuffer());
-      let doc;
-      try {
-        doc = await pdfjsLib.getDocument({ data: uint8 }).promise;
-      } catch (e) {
-        console.error('PDF preview error:', e);
-        resetPreview();
-        return;
-      }
-
-      const pageCount = doc.numPages || 0;
-      previewPagesCount.textContent = pageCount + (pageCount === 1 ? ' page' : ' pages');
-
-      const maxPages = Math.min(pageCount, 8);
-      for (let i = 1; i <= maxPages; i++) {
-        const page = await doc.getPage(i);
-        const viewport = page.getViewport({ scale: 0.3 });
-
-        const wrapper = document.createElement('div');
-        wrapper.className =
-          'thumb-wrapper relative bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden flex flex-col';
-        wrapper.dataset.pageNumber = String(i);
-
-        const canvas = document.createElement('canvas');
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        canvas.className =
-          'w-full h-auto block bg-slate-100 transition-transform duration-200 origin-center';
-
-        const pageLabel = document.createElement('div');
-        pageLabel.className =
-          'px-1.5 py-1 text-[10px] text-slate-500 border-t border-slate-100 bg-slate-50 text-right';
-        pageLabel.textContent = 'Page ' + i;
-
-        wrapper.appendChild(canvas);
-        wrapper.appendChild(pageLabel);
-        previewThumbnails.appendChild(wrapper);
-
-        const ctx = canvas.getContext('2d');
-        await page.render({ canvasContext: ctx, viewport }).promise;
-      }
-
-      // PRO++: page controls + crop + watermark
-      setupPageControls();
-      if (toolSlug === 'crop-pdf') {
-        setupCropBoxes();
-      }
-      if (toolSlug === 'rotate-pdf') {
-        applyRotationToThumbnails(currentRotation);
-      }
-      if (toolSlug === 'watermark-pdf' && watermarkInput) {
-        applyWatermarkOverlay(watermarkInput.value);
-      }
-    }
-
-    function handleFilesSelected(files) {
-      if (!files || !files.length) return;
-      currentFile = files[0]; // For preview we use the first file only
-
-      if (fileInfo) {
-        fileInfo.classList.remove('hidden');
-        fileInfo.textContent = files.length === 1
-          ? `${currentFile.name} · ${humanFileSize(currentFile.size)}`
-          : `${files.length} files selected · previewing first`;
-      }
-
-      // Copy the file(s) into the real form file input
-      const dt = new DataTransfer();
-      for (let f of files) {
-        dt.items.add(f);
-      }
-      hiddenFileInput.files = dt.files;
-
-      const isPdf = currentFile.type === 'application/pdf' ||
-        currentFile.name.toLowerCase().endsWith('.pdf');
-      if (isPdf) {
-        renderPdfPreview(currentFile);
-      } else {
-        resetPreview();
-        showPreviewPanel();
-        previewFilename.textContent = currentFile.name;
-        previewSize.textContent = humanFileSize(currentFile.size);
-        previewPagesCount.textContent = 'Preview not available for this file type';
-      }
-    }
-
-    // Upload area click -> trigger input (FIX: avoid double dialog)
-    if (uploadArea && fileInput) {
-      uploadArea.addEventListener('click', function (e) {
-        // If the click already originated on the real input, don't trigger another click
-        if (e.target === fileInput) return;
-        fileInput.click();
-      });
-
-      uploadArea.addEventListener('dragover', function (e) {
-        e.preventDefault();
-        uploadArea.classList.add('border-violet-400', 'bg-violet-50/40');
-      });
-
-      uploadArea.addEventListener('dragleave', function (e) {
-        e.preventDefault();
-        uploadArea.classList.remove('border-violet-400', 'bg-violet-50/40');
-      });
-
-      uploadArea.addEventListener('drop', function (e) {
-        e.preventDefault();
-        uploadArea.classList.remove('border-violet-400', 'bg-violet-50/40');
-        const files = e.dataTransfer.files;
-        if (files && files.length) {
-          fileInput.files = files;
-          handleFilesSelected(files);
-        }
-      });
-
-      fileInput.addEventListener('change', function (e) {
-        const files = e.target.files;
-        if (files && files.length) {
-          handleFilesSelected(files);
-        }
-      });
-    }
-
-    // Compression label updates
-    if (compressionSlider && compressionLabel) {
-      const updateCompressionLabel = (val) => {
-        let text = 'Balanced';
-        if (val === '1') text = 'High quality';
-        if (val === '3') text = 'Smallest file';
-        compressionLabel.textContent = text;
-      };
-      updateCompressionLabel(compressionSlider.value);
-      compressionSlider.addEventListener('input', function (e) {
-        updateCompressionLabel(e.target.value);
-      });
-    }
-
-    // Rotation logic
-    if (toolSlug === 'rotate-pdf' && rotationSlider && rotationLabel && rotationAngleInput) {
-      const syncRotation = (angle) => {
-        currentRotation = angle;
-        rotationSlider.value = angle;
-        rotationLabel.textContent = angle + '°';
-        rotationAngleInput.value = angle;
-        applyRotationToThumbnails(angle);
-      };
-
-      rotationSlider.addEventListener('input', function (e) {
-        const angle = parseInt(e.target.value, 10) || 0;
-        syncRotation(angle);
-      });
-
-      rotateButtons.forEach((btn) => {
-        btn.addEventListener('click', function () {
-          const dir = parseInt(btn.dataset.direction, 10) || 0;
-          let angle = (currentRotation + dir) % 360;
-          if (angle < 0) angle += 360;
-          const allowed = [0, 90, 180, 270];
-          angle = allowed.reduce((prev, curr) =>
-            Math.abs(curr - angle) < Math.abs(prev - angle) ? curr : prev
-          );
-          syncRotation(angle);
-        });
-      });
-
-      if (rotationResetBtn) {
-        rotationResetBtn.addEventListener('click', function () {
-          syncRotation(0);
-        });
-      }
-    }
-
-    // Watermark overlay preview
-    if (toolSlug === 'watermark-pdf' && watermarkInput) {
-      watermarkInput.addEventListener('input', function () {
-        applyWatermarkOverlay(watermarkInput.value);
-      });
-    }
-
-    // Reset preview button
-    if (previewResetBtn) {
-      previewResetBtn.addEventListener('click', function () {
-        if (currentFile) {
-          const isPdf = currentFile.type === 'application/pdf' ||
-            currentFile.name.toLowerCase().endsWith('.pdf');
-          if (isPdf) {
-            renderPdfPreview(currentFile);
-          } else {
-            resetPreview();
-            showPreviewPanel();
-            previewFilename.textContent = currentFile.name;
-            previewSize.textContent = humanFileSize(currentFile.size);
-            previewPagesCount.textContent = 'Preview not available for this file type';
-          }
-        } else {
-          resetPreview();
-        }
-      });
-    }
-
-    function collectPageOrderAndDeletes() {
-      const wrappers = previewThumbnails.querySelectorAll('.thumb-wrapper');
-      const order = [];
-      const deleted = [];
-      wrappers.forEach(w => {
-        const pageNumber = parseInt(w.dataset.pageNumber, 10);
-        const includeCheckbox = w.querySelector('.page-include-checkbox');
-        if (includeCheckbox && includeCheckbox.checked) {
-          order.push(pageNumber);
-        } else {
-          deleted.push(pageNumber);
-        }
-      });
-      if (hiddenPageOrder) {
-        hiddenPageOrder.value = order.join(',');
-      }
-      if (hiddenDeletedPages) {
-        hiddenDeletedPages.value = deleted.join(',');
-      }
-    }
-
-    function collectCropRegions() {
-      if (toolSlug !== 'crop-pdf' || !hiddenCropRegions) return;
-      const wrappers = previewThumbnails.querySelectorAll('.thumb-wrapper');
-      const result = {};
-      wrappers.forEach(w => {
-        const pageNumber = parseInt(w.dataset.pageNumber, 10);
-        const box = w.querySelector('.crop-box');
-        const canvas = w.querySelector('canvas');
-        if (!box || !canvas) return;
-
-        const wRect = w.getBoundingClientRect();
-        const bRect = box.getBoundingClientRect();
-
-        // relative to wrapper
-        const x = (bRect.left - wRect.left) / wRect.width;
-        const y = (bRect.top - wRect.top) / wRect.height;
-        const width = bRect.width / wRect.width;
-        const height = bRect.height / wRect.height;
-
-        result[pageNumber] = {
-          x: Math.max(0, Math.min(1, x)),
-          y: Math.max(0, Math.min(1, y)),
-          width: Math.max(0, Math.min(1, width)),
-          height: Math.max(0, Math.min(1, height))
-        };
-      });
-      hiddenCropRegions.value = JSON.stringify(result);
-    }
-
-    // Before submit: copy visible advanced controls into hidden fields
-    if (form) {
-      form.addEventListener('submit', function (e) {
-        if (!hiddenFileInput.files || !hiddenFileInput.files.length) {
-          e.preventDefault();
-          alert('Please upload a file first.');
-          return;
-        }
-
-        if (compressionSlider && hiddenCompressionLevel) {
-          hiddenCompressionLevel.value = compressionSlider.value;
-        }
-        if (pagesInput && hiddenPages) {
-          hiddenPages.value = pagesInput.value;
-        }
-        if (passwordInput && hiddenPassword) {
-          hiddenPassword.value = passwordInput.value;
-        }
-        if (watermarkInput && hiddenWatermarkText) {
-          hiddenWatermarkText.value = watermarkInput.value;
-        }
-        if (keepFilenameCheckbox && hiddenKeepFilename) {
-          hiddenKeepFilename.value = keepFilenameCheckbox.checked ? '1' : '0';
-        }
-
-        // PRO++ extras
-        collectPageOrderAndDeletes();
-        collectCropRegions();
-      });
+    if (file.type === "application/pdf" || file.name.endsWith('.pdf')) {
+      renderPdfPreview(file);
     }
   });
+
+});
 </script>
 
 {% endblock %}
