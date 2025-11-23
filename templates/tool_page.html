@@ -56,11 +56,12 @@
 
           <div id="upload-area"
                class="relative border border-dashed border-violet-200 rounded-xl p-4 sm:p-6 text-center cursor-pointer hover:border-violet-400 transition group">
-            <input
-              id="file-input"
-              type="file"
-              name="file"
-              class="absolute inset-0 opacity-0 cursor-pointer"
+            <input 
+              type="file" 
+              name="files" 
+              multiple 
+              required
+              class="w-full border p-3 rounded"
               {% if tool.slug in ['merge-pdf','image-to-pdf'] %}multiple{% endif %}
               {% if tool.slug not in ['word-to-pdf','excel-to-pdf','powerpoint-to-pdf','image-to-pdf','background-remover'] %}
                 accept=".pdf"
@@ -265,11 +266,11 @@
         </div>
 
         <!-- Process button -->
-        <form id="tool-form"
-              action="{{ url_for('process_tool', slug=tool.slug) }}"
-              method="post"
-              enctype="multipart/form-data"
-              class="space-y-3">
+        <form 
+            action="{{ url_for('process_tool', slug=tool.slug) }}" 
+            method="POST" 
+            enctype="multipart/form-data">
+
           <!-- Hidden file input target -->
           <input type="file"
                  name="file"
