@@ -10,12 +10,15 @@ from docx import Document
 from pptx import Presentation
 from reportlab.pdfgen import canvas
 from pdf_processor import PDFProcessor
-from werkzeug.exceptions import RequestEntityTooLarge
 
 # -------------------
 # APP INIT (FIXED)
 # -------------------
 app = Flask(__name__)
+
+from werkzeug.exceptions import RequestEntityTooLarge
+
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024
 
 @app.errorhandler(RequestEntityTooLarge)
 def file_too_large(e):
@@ -106,9 +109,9 @@ def index():
 def ai_tools_page():
     return render_template("tool_page.html", tools=AI_TOOLS)
 
-@app.route("/tool/<tool_slug>")
-def tool_page(tool_slug):
-    tool = SLUG_TO_TOOL.get(tool_slug)
+@app.route("/tool/<slug>")
+def tool_page(slug):
+    tool = SLUG_TO_TOOL.get(slug)
     if not tool:
         abort(404)
     return render_template("tool_page.html", tool=tool)

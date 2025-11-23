@@ -53,8 +53,8 @@
     <div class="hidden md:flex space-x-6 text-sm font-semibold">
       <a href="{{ url_for('index') }}" class="hover:text-violet-600">Home</a>
       <a href="{{ url_for('ai_tools_page') }}" class="hover:text-violet-600">AI Tools</a>
-      <a href="{{ url_for('tool_page', tool_slug='compress-pdf') }}" class="hover:text-violet-600">Compress PDF</a>
-      <a href="{{ url_for('tool_page', tool_slug='merge-pdf') }}" class="hover:text-violet-600">Merge PDF</a>
+      <a href="{{ url_for('tool_page', slug='compress-pdf') }}" class="hover:text-violet-600">Compress PDF</a>
+      <a href="{{ url_for('tool_page', slug='merge-pdf') }}" class="hover:text-violet-600">Merge PDF</a>
     </div>
 
     <!-- MOBILE BUTTON -->
@@ -74,8 +74,8 @@
 
     <a href="{{ url_for('index') }}" class="hover:text-violet-600">Home</a>
     <a href="{{ url_for('ai_tools_page') }}" class="hover:text-violet-600">AI Tools</a>
-    <a href="{{ url_for('tool_page', tool_slug='compress-pdf') }}" class="hover:text-violet-600">Compress PDF</a>
-    <a href="{{ url_for('tool_page', tool_slug='merge-pdf') }}" class="hover:text-violet-600">Merge PDF</a>
+    <a href="{{ url_for('tool_page', slug='compress-pdf') }}" class="hover:text-violet-600">Compress PDF</a>
+    <a href="{{ url_for('tool_page', slug='merge-pdf') }}" class="hover:text-violet-600">Merge PDF</a>
 
   </div>
 </nav>
