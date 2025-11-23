@@ -423,9 +423,7 @@
 </section>
 
 <!-- PDF.js (for local preview only) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.js"
-        integrity="sha512-eAQb5l0r4aDTZ0xMbJg7zt/OjZDVAZt4u1g3kWhhf+oXK69k3kTKq4vEd3+aR3XqDRqhOYra2b7L95InXTnoVA=="
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
 <script>
   document.addEventListener('DOMContentLoaded', function () {
@@ -483,7 +481,7 @@
     // --- PDF.js worker config ---
     if (window['pdfjsLib']) {
       pdfjsLib.GlobalWorkerOptions.workerSrc =
-        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js';
+            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
     }
 
     function humanFileSize(bytes) {
