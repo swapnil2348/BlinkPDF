@@ -721,10 +721,31 @@ class PDFProcessor:
         docx.save(out_path)
         doc_pdf.close()
         return out_path, dl_name
+        
+    def _word_to_pdf(self, input_path, output_path):
+        """Convert DOCX to PDF using reportlab fallback"""
 
-    def _word_to_p
+        doc = Document(input_path)
+        c = canvas.Canvas(output_path)
 
-df(self, files: List[str], options: Dict) -> Tuple[str, str]:
+        y = 800
+        for para in doc.paragraphs:
+            if not para.text.strip():
+                y -= 20
+                continue
+
+            c.drawString(40, y, para.text)
+            y -= 20
+
+            if y < 40:
+                c.showPage()
+                y = 800
+
+        c.save()
+        return True
+
+
+    def _docx_to_pdf(self, files: List[str], options: Dict) -> Tuple[str, str]:
         """
         Convert simple DOCX to PDF using reportlab (text-only).
         """
