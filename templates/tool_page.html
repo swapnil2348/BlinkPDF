@@ -56,9 +56,12 @@
 
           <div id="upload-area"
                class="relative border border-dashed border-violet-200 rounded-xl p-4 sm:p-6 text-center cursor-pointer hover:border-violet-400 transition group">
-           <input type="file" id="file-input" name="files"
-             {% if tool.slug in ['merge-pdf','image-to-pdf'] %}multiple{% endif %}required
-             class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+           <input type="file"
+                  id="file-input"
+                  name="files"
+                  {% if tool.slug in ['merge-pdf','image-to-pdf'] %}multiple{% endif %}required
+                  class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+
             <div class="flex flex-col items-center gap-3 pointer-events-none">
               <div class="w-11 h-11 rounded-2xl bg-violet-50 flex items-center justify-center border border-violet-100 group-hover:bg-violet-100 transition">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-violet-500" fill="none"
@@ -679,8 +682,9 @@
       const maxPages = 1;
       for (let i = 1; i <= maxPages; i++) {
         const page = await doc.getPage(i);
-        const viewport = page.getViewport({ scale: 0.3 });
-
+        const containerWidth = previewWrapper.clientWidth - 40; 
+        const scale = containerWidth / page.getViewport({ scale: 1 }).width;
+        const viewport = page.getViewport({ scale: scale });
         const wrapper = document.createElement('div');
         wrapper.className =
           'thumb-wrapper relative bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden flex flex-col';
