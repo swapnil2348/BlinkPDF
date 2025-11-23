@@ -30,22 +30,22 @@ TOOLS = [
 ]
 
 
-# ================ FIXED ROUTES ===================
+# ================= ROUTES ===================
 
 @app.route('/')
 def index():
     return render_template("index.html", tools=TOOLS)
 
 
-# ✅ THIS ROUTE WAS MISSING — NOW FIXED
 @app.route('/ai-tools')
 def ai_tools_page():
     return render_template("ai_tools.html")
 
 
-@app.route('/<tool_slug>')
-def tool_page(tool_slug):
-    tool = next((t for t in TOOLS if t["slug"] == tool_slug), None)
+# ✅ FIX: Accept BOTH slug + tool_slug
+@app.route('/<slug>')
+def tool_page(slug):     # ← renamed only inside function (no front-end change)
+    tool = next((t for t in TOOLS if t["slug"] == slug), None)
 
     if not tool:
         return "Tool not found", 404
@@ -53,8 +53,8 @@ def tool_page(tool_slug):
     return render_template("tool_page.html", tool=tool)
 
 
-@app.route('/process/<tool_slug>', methods=['POST'])
-def process_file(tool_slug):
+@app.route('/process/<slug>', methods=['POST'])
+def process_file(slug):
     try:
         files = request.files.getlist("file")
 
@@ -72,7 +72,7 @@ def process_file(tool_slug):
         options = request.form.to_dict()
 
         output_path, download_name, mime = pdf_processor.process(
-            tool_slug,
+            slug,
             saved_paths,
             options
         )
