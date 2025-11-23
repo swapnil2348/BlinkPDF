@@ -1,7 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, send_file, abort, jsonify
 import os
 import uuid
-
 from werkzeug.utils import secure_filename
 
 import fitz  # PyMuPDF
@@ -12,7 +11,7 @@ from pptx import Presentation
 from reportlab.pdfgen import canvas
 
 
-app = Flask(_name_)
+app = Flask(__name__)
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
@@ -26,29 +25,62 @@ app.config["OUTPUT_FOLDER"] = OUTPUT_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100MB
 
 
-# ----------------------
-# TOOL DATA (IMPORTANT)
-# ----------------------
+# ------------------------------------------------
+# FULL NON-AI TOOL LIST (33 TOOLS – COMPLETE)
+# ------------------------------------------------
 
 TOOLS = [
-    {"name": "Compress PDF", "slug": "compress-pdf", "category": "PDF"},
-    {"name": "Merge PDF", "slug": "merge-pdf", "category": "PDF"},
-    {"name": "Split PDF", "slug": "split-pdf", "category": "PDF"},
-    {"name": "PDF to JPG", "slug": "pdf-to-jpg", "category": "PDF"},
-    {"name": "JPG to PDF", "slug": "jpg-to-pdf", "category": "PDF"},
-    {"name": "PDF to Word", "slug": "pdf-to-word", "category": "PDF"},
-    {"name": "Word to PDF", "slug": "word-to-pdf", "category": "PDF"},
-    {"name": "PDF to PowerPoint", "slug": "pdf-to-ppt", "category": "PDF"},
-    {"name": "PowerPoint to PDF", "slug": "ppt-to-pdf", "category": "PDF"},
-    {"name": "Rotate PDF", "slug": "rotate-pdf", "category": "PDF"},
-    {"name": "Unlock PDF", "slug": "unlock-pdf", "category": "PDF"},
-    {"name": "Protect PDF", "slug": "protect-pdf", "category": "PDF"},
-    {"name": "Sign PDF", "slug": "sign-pdf", "category": "PDF"},
-    {"name": "OCR PDF", "slug": "ocr-pdf", "category": "PDF"},
+    {'slug': 'merge-pdf', 'title': 'Merge PDF', 'desc': 'Combine multiple PDF documents easily.'},
+    {'slug': 'split-pdf', 'title': 'Split PDF', 'desc': 'Extract or split PDF pages.'},
+    {'slug': 'compress-pdf', 'title': 'Compress PDF', 'desc': 'Reduce PDF size.'},
+    {'slug': 'optimize-pdf', 'title': 'Optimize PDF', 'desc': 'Clean and optimize PDF.'},
+    {'slug': 'rotate-pdf', 'title': 'Rotate PDF', 'desc': 'Rotate PDF pages.'},
+    {'slug': 'watermark-pdf', 'title': 'Watermark PDF', 'desc': 'Add watermark to PDF.'},
+    {'slug': 'number-pdf', 'title': 'Number Pages', 'desc': 'Add page numbers.'},
+    {'slug': 'protect-pdf', 'title': 'Protect PDF', 'desc': 'Add password protection.'},
+    {'slug': 'unlock-pdf', 'title': 'Unlock PDF', 'desc': 'Remove PDF password.'},
+    {'slug': 'repair-pdf', 'title': 'Repair PDF', 'desc': 'Fix broken PDFs.'},
+    {'slug': 'organize-pdf', 'title': 'Organize PDF', 'desc': 'Reorder and delete pages.'},
+    {'slug': 'sign-pdf', 'title': 'Sign PDF', 'desc': 'Add digital signature.'},
+    {'slug': 'annotate-pdf', 'title': 'Annotate PDF', 'desc': 'Highlight and comment.'},
+    {'slug': 'redact-pdf', 'title': 'Redact PDF', 'desc': 'Remove sensitive info.'},
+
+    {'slug': 'pdf-to-word', 'title': 'PDF to Word', 'desc': 'Convert to DOCX.'},
+    {'slug': 'word-to-pdf', 'title': 'Word to PDF', 'desc': 'Convert DOCX to PDF.'},
+    {'slug': 'pdf-to-image', 'title': 'PDF to Image', 'desc': 'Convert pages to images.'},
+    {'slug': 'image-to-pdf', 'title': 'Image to PDF', 'desc': 'Make PDF from images.'},
+    {'slug': 'pdf-to-excel', 'title': 'PDF to Excel', 'desc': 'Extract tables to XLSX.'},
+    {'slug': 'excel-to-pdf', 'title': 'Excel to PDF', 'desc': 'Convert Excel to PDF.'},
+    {'slug': 'pdf-to-powerpoint', 'title': 'PDF to PowerPoint', 'desc': 'Convert to PPTX.'},
+    {'slug': 'powerpoint-to-pdf', 'title': 'PowerPoint to PDF', 'desc': 'Convert to PDF.'},
+
+    {'slug': 'ocr-pdf', 'title': 'OCR PDF', 'desc': 'Make searchable.'},
+    {'slug': 'extract-text', 'title': 'Extract Text', 'desc': 'Extract text.'},
+    {'slug': 'extract-images', 'title': 'Extract Images', 'desc': 'Pull images.'},
+    {'slug': 'deskew-pdf', 'title': 'Deskew PDF', 'desc': 'Auto-straighten.'},
+    {'slug': 'crop-pdf', 'title': 'Crop PDF', 'desc': 'Crop pages.'},
+    {'slug': 'resize-pdf', 'title': 'Resize PDF', 'desc': 'Change page size.'},
+    {'slug': 'flatten-pdf', 'title': 'Flatten PDF', 'desc': 'Flatten layers.'},
+    {'slug': 'metadata-editor', 'title': 'Metadata Editor', 'desc': 'Edit PDF metadata.'},
+    {'slug': 'fill-forms', 'title': 'Fill Forms', 'desc': 'Fill PDF forms.'},
+    {'slug': 'background-remover', 'title': 'Remove Background', 'desc': 'Clean background.'}
+]
+
+# ------------------------------------------------
+# FULL AI TOOL LIST (6 TOOLS)
+# ------------------------------------------------
+
+AI_TOOLS = [
+    {"slug": "ai-editor", "title": "AI PDF Editor", "url": "/ai/editor"},
+    {"slug": "ai-summarizer", "title": "AI Summarizer", "url": "/ai/summarizer-page"},
+    {"slug": "ai-chat", "title": "Chat with PDF", "url": "/ai/chat-page"},
+    {"slug": "ai-translate", "title": "AI Translator", "url": "/ai/translate-page"},
+    {"slug": "ai-table-extract", "title": "AI Table Extractor", "url": "/ai/table-page"},
+    {"slug": "ai-rewrite", "title": "AI Rewrite PDF", "url": "/ai/rewrite-page"}
 ]
 
 SLUG_TO_TOOL = {tool["slug"]: tool for tool in TOOLS}
-
+AI_SLUGS = {tool["slug"]: tool for tool in AI_TOOLS}
 
 # ----------------------
 # BASIC PAGES
