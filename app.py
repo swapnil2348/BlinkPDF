@@ -104,7 +104,7 @@ def contact():
     return render_template("contact.html")
     
 @app.route("/terms")
-def contact():
+def terms():
     return render_template("terms.html")
     
 @app.route("/tool/<slug>")
