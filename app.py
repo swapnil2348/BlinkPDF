@@ -12,7 +12,7 @@ from pptx import Presentation
 from reportlab.pdfgen import canvas
 
 
-app = Flask(__name)
+app = Flask(_name_)
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
