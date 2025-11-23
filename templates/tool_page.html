@@ -5,105 +5,92 @@
 {% block content %}
 <section class="bg-violet-50 p-6 rounded-xl shadow-md">
 
-  <div class="mb-8">
+  <!-- HEADER -->
+  <div class="mb-8 text-center">
     <span class="inline-block bg-violet-100 text-violet-600 px-4 py-1 rounded-full text-xs font-semibold">
       {{ tool.title }}
     </span>
 
     <h1 class="text-3xl font-bold mt-4">{{ tool.title }}</h1>
 
-    <div class="flex flex-wrap gap-3 mt-4 text-xs">
+    <div class="flex flex-wrap justify-center gap-3 mt-4 text-xs">
       <span class="bg-green-100 text-green-600 px-3 py-1 rounded-full">Fast processing</span>
       <span class="bg-blue-100 text-blue-600 px-3 py-1 rounded-full">Secure & private</span>
       <span class="bg-gray-100 px-3 py-1 rounded-full">No signup</span>
     </div>
   </div>
 
-  <form action="/process/{{ tool.slug }}" method="POST" enctype="multipart/form-data" class="grid md:grid-cols-2 gap-8">
+  <!-- FORM -->
+  <form action="/process/{{ tool.slug }}" method="POST" enctype="multipart/form-data">
 
-    <!-- ================= LEFT SIDE ================= -->
-    <div>
+    <!-- UPLOAD ZONE -->
+    <div class="bg-white p-6 rounded-xl shadow mb-6 text-center">
 
-      <!-- UPLOAD -->
-      <div class="bg-white p-6 rounded-xl shadow mb-6">
-        <h2 class="font-semibold mb-3">Upload File</h2>
+      <h2 class="font-semibold mb-4">Upload File</h2>
 
-        <!-- THIS IS THE ONLY FILE INPUT (FIXED) -->
-        <input
-          type="file"
-          name="files"
-          multiple
-          accept=".pdf,.jpg,.jpeg,.png,.docx,.pptx"
-          class="block w-full border border-dashed border-violet-300 rounded-lg p-4"
-          required
-        >
-
-        <p class="text-xs text-slate-500 mt-2">
-          Supports PDF, Images, Word, PowerPoint • Max 500MB
-        </p>
-      </div>
-
-      <!-- ADVANCED SETTINGS -->
-      <div class="bg-white p-6 rounded-xl shadow">
-        <h2 class="font-semibold mb-3">Advanced Settings</h2>
-
-        {% if tool.slug == "rotate-pdf" %}
-        <label class="block mb-2 text-sm font-medium">Rotation</label>
-        <select name="rotation" class="w-full border rounded-md p-2">
-          <option value="90">+90°</option>
-          <option value="180">180°</option>
-          <option value="270">-90°</option>
-        </select>
-        {% endif %}
-
-        {% if tool.slug == "compress-pdf" %}
-        <label class="block mb-2 text-sm font-medium">Compression Level</label>
-        <select name="level" class="w-full border rounded-md p-2">
-          <option value="low">Low (High Quality)</option>
-          <option value="medium">Medium</option>
-          <option value="high">High (Smaller Size)</option>
-        </select>
-        {% endif %}
-
-        {% if tool.slug == "split-pdf" %}
-        <label class="block mb-2 text-sm font-medium">Split Mode</label>
-        <select name="mode" class="w-full border rounded-md p-2">
-          <option value="pages">Each page separate</option>
-          <option value="range">By range</option>
-        </select>
-
-        <input
-          name="range"
-          type="text"
-          placeholder="e.g 1-3,5,7-9"
-          class="w-full border rounded-md p-2 mt-2"
-        >
-        {% endif %}
-      </div>
-
-      <!-- PROCESS BUTTON -->
-      <button
-        type="submit"
-        class="mt-6 w-full bg-violet-600 hover:bg-violet-700 text-white py-5 text-lg rounded-xl font-semibold transition"
+      <!-- ✅ ONLY ONE INPUT, SAME NAME YOUR BACKEND EXPECTS -->
+      <input
+        type="file"
+        name="files"
+        multiple
+        required
+        class="w-full border-2 border-dashed border-violet-300 rounded-xl p-6 cursor-pointer text-center"
+        accept=".pdf,.jpg,.jpeg,.png,.docx,.pptx,.xlsx"
       >
-        Process {{ tool.title }}
-      </button>
+
+      <p class="text-xs text-slate-500 mt-2">
+        Supports PDF, Images, Word, PowerPoint • Max 500MB
+      </p>
 
     </div>
 
-    <!-- ================= RIGHT SIDE (PREVIEW) ================= -->
-    <div class="bg-white p-6 rounded-xl shadow flex items-center justify-center text-slate-400 text-center">
-      <div>
-        <svg class="mx-auto w-14 h-14 mb-3 text-violet-400" fill="none" stroke="currentColor" stroke-width="1.5"
-          viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round"
-            d="M12 4v16m8-8H4" />
-        </svg>
-        <p class="text-sm">
-          Live preview will appear here after upload
-        </p>
-      </div>
+    <!-- ADVANCED OPTIONS -->
+    <div class="bg-white p-6 rounded-xl shadow mb-6">
+
+      <h2 class="font-semibold mb-3">Advanced Settings</h2>
+
+      {% if tool.slug == "rotate-pdf" %}
+      <label class="block mb-2 text-sm font-medium">Rotation</label>
+      <select name="rotation" class="w-full border rounded-md p-2">
+        <option value="90">+90°</option>
+        <option value="180">180°</option>
+        <option value="270">-90°</option>
+      </select>
+      {% endif %}
+
+      {% if tool.slug == "compress-pdf" %}
+      <label class="block mb-2 text-sm font-medium">Compression Level</label>
+      <select name="level" class="w-full border rounded-md p-2">
+        <option value="low">Low (High Quality)</option>
+        <option value="medium">Medium</option>
+        <option value="high">High (Smaller Size)</option>
+      </select>
+      {% endif %}
+
+      {% if tool.slug == "split-pdf" %}
+      <label class="block mb-2 text-sm font-medium">Split Mode</label>
+      <select name="mode" class="w-full border rounded-md p-2">
+        <option value="pages">Each page separate</option>
+        <option value="range">By range</option>
+      </select>
+
+      <input
+        name="range"
+        type="text"
+        placeholder="Example: 1-3,5,8"
+        class="w-full border rounded-md p-2 mt-2"
+      >
+      {% endif %}
+
     </div>
+
+    <!-- PROCESS BUTTON -->
+    <button
+      type="submit"
+      class="w-full bg-violet-600 hover:bg-violet-700 text-white py-5 text-lg rounded-xl font-semibold transition"
+    >
+      Process {{ tool.title }}
+    </button>
 
   </form>
 
