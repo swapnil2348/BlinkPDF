@@ -278,17 +278,17 @@ class PDFProcessor:
     def compress_pdf(self, path: str, level: str):
         """
         Real compression using PyMuPDF
-        Compatible with older PyMuPDF versions (NO image_quality crash)
+        Compatible with PyMuPDF 1.26+
         """
 
         level = str(level or "").strip()
 
-        # Adjust quality using matrix scale instead of image_quality flag
-        if level == "1":        # High quality
+        # Compression scaling
+        if level == "1":          # High quality
         scale = 1.0
-        elif level == "3":      # Strong compression
+        elif level == "3":        # Strong compression
         scale = 0.6
-        else:                    # Balanced (2)
+        else:                      # Balanced (2)
         scale = 0.8
 
         doc = fitz.open(path)
@@ -298,19 +298,30 @@ class PDFProcessor:
         mat = fitz.Matrix(scale, scale)
         pix = page.get_pixmap(matrix=mat)
 
-        new_page = new_doc.new_page(width=pix.width, height=pix.height)
+        new_page = new_doc.new_page(
+            width=pix.width,
+            height=pix.height
+        )
+
         new_page.insert_image(
             fitz.Rect(0, 0, pix.width, pix.height),
             pixmap=pix
         )
 
-        out_path = self._tmp_file(".pdf")
-        new_doc.save(out_path, deflate=True, garbage=4, clean=True)
+         out_path = self._tmp_file(".pdf")
+
+        new_doc.save(
+        out_path,
+        deflate=True,
+        garbage=4,
+        clean=True
+        )
 
         doc.close()
         new_doc.close()
 
         return out_path, "compressed.pdf", "application/pdf"
+
 
     def optimize_pdf(self, path: str) -> Tuple[str, str, str]:
         doc = fitz.open(path)
