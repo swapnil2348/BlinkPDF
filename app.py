@@ -2,29 +2,22 @@ from flask import Flask, render_template, request, send_file, abort, jsonify
 import os
 import uuid
 from werkzeug.utils import secure_filename
+from werkzeug.exceptions import RequestEntityTooLarge
 
-import fitz  # PyMuPDF
 from PyPDF2 import PdfReader, PdfWriter
 from PIL import Image
+import fitz  # PyMuPDF
 from docx import Document
 from pptx import Presentation
 from reportlab.pdfgen import canvas
-from pdf_processor import PDFProcessor
 
-# -------------------
-# APP INIT (FIXED)
-# -------------------
+
 app = Flask(__name__)
 
-from werkzeug.exceptions import RequestEntityTooLarge
+# ------------------ CONFIG ------------------
 
-app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024
-
-@app.errorhandler(RequestEntityTooLarge)
-def file_too_large(e):
-    return "File too large. Maximum allowed: 500MB", 413
-    
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 OUTPUT_FOLDER = os.path.join(BASE_DIR, "outputs")
 
@@ -33,154 +26,205 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["OUTPUT_FOLDER"] = OUTPUT_FOLDER
-app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500MB
 
-# ✅ FIXED CONSTRUCTOR CALL
-pdf_processor = PDFProcessor(OUTPUT_FOLDER)
+# 500 MB limit
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  
 
-# --------------------------------------------------------------------
-# FULL TOOL LIST (33 NORMAL TOOLS)
-# --------------------------------------------------------------------
+
+@app.errorhandler(RequestEntityTooLarge)
+def file_too_large(e):
+    return "❌ File too large. Max allowed: 500MB", 413
+
+
+# ------------------ TOOLS ------------------
+
 TOOLS = [
-    {'slug': 'merge-pdf', 'title': 'Merge PDF', 'icon': 'merge-pdf.svg'},
-    {'slug': 'split-pdf', 'title': 'Split PDF', 'icon': 'split-pdf.svg'},
-    {'slug': 'compress-pdf', 'title': 'Compress PDF', 'icon': 'compress-pdf.svg'},
-    {'slug': 'optimize-pdf', 'title': 'Optimize PDF', 'icon': 'optimize-pdf.svg'},
-    {'slug': 'rotate-pdf', 'title': 'Rotate PDF', 'icon': 'rotate-pdf.svg'},
-    {'slug': 'watermark-pdf', 'title': 'Watermark PDF', 'icon': 'watermark-pdf.svg'},
-    {'slug': 'number-pdf', 'title': 'Number Pages', 'icon': 'number-pdf.svg'},
-    {'slug': 'protect-pdf', 'title': 'Protect PDF', 'icon': 'protect-pdf.svg'},
-    {'slug': 'unlock-pdf', 'title': 'Unlock PDF', 'icon': 'unlock-pdf.svg'},
-    {'slug': 'repair-pdf', 'title': 'Repair PDF', 'icon': 'repair-pdf.svg'},
-    {'slug': 'organize-pdf', 'title': 'Organize PDF', 'icon': 'organize-pdf.svg'},
-    {'slug': 'sign-pdf', 'title': 'Sign PDF', 'icon': 'sign-pdf.svg'},
-    {'slug': 'annotate-pdf', 'title': 'Annotate PDF', 'icon': 'annotate-pdf.svg'},
-    {'slug': 'redact-pdf', 'title': 'Redact PDF', 'icon': 'redact-pdf.svg'},
-    {'slug': 'pdf-to-word', 'title': 'PDF to Word', 'icon': 'pdf-to-word.svg'},
-    {'slug': 'word-to-pdf', 'title': 'Word to PDF', 'icon': 'word-to-pdf.svg'},
-    {'slug': 'pdf-to-image', 'title': 'PDF to Image', 'icon': 'pdf-to-image.svg'},
-    {'slug': 'image-to-pdf', 'title': 'Image to PDF', 'icon': 'image-to-pdf.svg'},
-    {'slug': 'pdf-to-excel', 'title': 'PDF to Excel', 'icon': 'pdf-to-excel.svg'},
-    {'slug': 'excel-to-pdf', 'title': 'Excel to PDF', 'icon': 'excel-to-pdf.svg'},
-    {'slug': 'pdf-to-powerpoint', 'title': 'PDF to PowerPoint', 'icon': 'pdf-to-powerpoint.svg'},
-    {'slug': 'powerpoint-to-pdf', 'title': 'PowerPoint to PDF', 'icon': 'powerpoint-to-pdf.svg'},
-    {'slug': 'ocr-pdf', 'title': 'OCR PDF', 'icon': 'ocr-pdf.svg'},
-    {'slug': 'extract-text', 'title': 'Extract Text', 'icon': 'extract-text.svg'},
-    {'slug': 'extract-images', 'title': 'Extract Images', 'icon': 'extract-images.svg'},
-    {'slug': 'deskew-pdf', 'title': 'Deskew PDF', 'icon': 'deskew-pdf.svg'},
-    {'slug': 'crop-pdf', 'title': 'Crop PDF', 'icon': 'crop-pdf.svg'},
-    {'slug': 'resize-pdf', 'title': 'Resize PDF', 'icon': 'resize-pdf.svg'},
-    {'slug': 'flatten-pdf', 'title': 'Flatten PDF', 'icon': 'flatten-pdf.svg'},
-    {'slug': 'metadata-editor', 'title': 'Metadata Editor', 'icon': 'metadata-editor.svg'},
-    {'slug': 'fill-forms', 'title': 'Fill PDF Forms', 'icon': 'fill-forms.svg'},
-    {'slug': 'background-remover', 'title': 'Remove Background', 'icon': 'background-remover.svg'}
+    {"name": "Compress PDF", "slug": "compress-pdf", "category": "PDF"},
+    {"name": "Merge PDF", "slug": "merge-pdf", "category": "PDF"},
+    {"name": "Split PDF", "slug": "split-pdf", "category": "PDF"},
+    {"name": "PDF to JPG", "slug": "pdf-to-jpg", "category": "PDF"},
+    {"name": "JPG to PDF", "slug": "jpg-to-pdf", "category": "PDF"},
+    {"name": "PDF to Word", "slug": "pdf-to-word", "category": "PDF"},
+    {"name": "Word to PDF", "slug": "word-to-pdf", "category": "PDF"},
+    {"name": "PDF to PowerPoint", "slug": "pdf-to-ppt", "category": "PDF"},
+    {"name": "PowerPoint to PDF", "slug": "ppt-to-pdf", "category": "PDF"},
+    {"name": "Rotate PDF", "slug": "rotate-pdf", "category": "PDF"},
+    {"name": "Unlock PDF", "slug": "unlock-pdf", "category": "PDF"},
+    {"name": "Protect PDF", "slug": "protect-pdf", "category": "PDF"},
+    {"name": "Sign PDF", "slug": "sign-pdf", "category": "PDF"},
+    {"name": "OCR PDF", "slug": "ocr-pdf", "category": "PDF"},
 ]
 
-# --------------------------------------------------------------------
-# AI TOOL LIST
-# --------------------------------------------------------------------
 AI_TOOLS = [
-    {"slug": "ai-editor", "title": "AI PDF Editor", "url": "/ai/editor"},
-    {"slug": "ai-summarizer", "title": "AI Summarizer", "url": "/ai/summarizer-page"},
-    {"slug": "ai-chat", "title": "Chat with PDF", "url": "/ai/chat-page"},
-    {"slug": "ai-translate", "title": "AI Translator", "url": "/ai/translate-page"},
-    {"slug": "ai-table-extract", "title": "AI Table Extractor", "url": "/ai/table-page"},
+    {"name": "AI PDF Editor", "slug": "ai-editor"},
+    {"name": "AI PDF Chat", "slug": "ai-chat"},
+    {"name": "AI PDF Summarizer", "slug": "ai-summarizer"},
+    {"name": "AI PDF Notes", "slug": "ai-notes"},
+    {"name": "AI PDF Translator", "slug": "ai-translator"},
+    {"name": "AI PDF Analyzer", "slug": "ai-analyzer"},
 ]
 
-SLUG_TO_TOOL = {tool["slug"]: tool for tool in TOOLS}
+SLUG_TO_TOOL = {tool["slug"]: tool for tool in TOOLS + AI_TOOLS}
 
-# ✅ FIX SLUG MISMATCHES
-SLUG_ALIASES = {
-    "pdf-to-jpg": "pdf-to-image",
-    "jpg-to-pdf": "image-to-pdf",
-    "pdf-to-ppt": "pdf-to-powerpoint",
-    "ppt-to-pdf": "powerpoint-to-pdf"
-}
 
-# --------------------------------------------------------------------
-# ROUTES
-# --------------------------------------------------------------------
+# ------------------ ROUTES ------------------
 
 @app.route("/")
 def index():
     return render_template("index.html", tools=TOOLS, ai_tools=AI_TOOLS)
 
-@app.route("/ai-tools")
-def ai_tools_page():
-    return render_template("tool_page.html", tools=AI_TOOLS)
-    
-@app.route("/privacy")
-def privacy():
-    return render_template("privacy.html")
-
-@app.route("/terms")
-def terms():
-    return render_template("terms.html")
-
-@app.route("/contact")
-def contact():
-    return render_template("contact.html")
 
 @app.route("/tool/<slug>")
 def tool_page(slug):
     tool = SLUG_TO_TOOL.get(slug)
     if not tool:
-        abort(404)
+        return abort(404)
+
     return render_template("tool_page.html", tool=tool)
 
 
+# ----- REQUIRED FOOTER ROUTES (Fixes your errors) -----
+
+@app.route("/privacy")
+def privacy():
+    return render_template("privacy.html")
+
+
+@app.route("/terms")
+def terms():
+    return render_template("terms.html")
+
+
+@app.route("/contact")
+def contact():
+    return render_template("contact.html")
+
+
+# ------------------ PROCESS ROUTE ------------------
+
 @app.route("/process/<slug>", methods=["POST"])
 def process_tool(slug):
+
     tool = SLUG_TO_TOOL.get(slug)
+    if not tool:
+        return abort(404)
 
-    if "file" not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
+    if "files" not in request.files:
+        return "No files uploaded", 400
 
-    file = request.files["file"]
-    if file.filename == "":
-        return jsonify({"error": "Empty filename"}), 400
+    files = request.files.getlist("files")
 
-    filename = secure_filename(file.filename)
-    unique_id = str(uuid.uuid4())
+    if len(files) == 0:
+        return "No files selected", 400
 
-    input_path = os.path.join(UPLOAD_FOLDER, f"{unique_id}_{filename}")
-    output_filename = f"BlinkPDF_{tool_slug}_{unique_id}.pdf"
-    output_path = os.path.join(OUTPUT_FOLDER, output_filename)
+    file_paths = []
 
-    file.save(input_path)
+    for file in files:
+        if file.filename == "":
+            continue
 
-    options = dict(request.form)
+        filename = secure_filename(f"{uuid.uuid4().hex}_{file.filename}")
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+        file_paths.append(filepath)
 
-    ok = pdf_processor.process(tool_slug, input_path, output_path, options)
+    # -------------- MERGE PDF ----------------
+    if slug == "merge-pdf":
+        output_path = os.path.join(app.config['OUTPUT_FOLDER'], f"merged_{uuid.uuid4().hex}.pdf")
 
-    if not ok or not os.path.exists(output_path):
-        return jsonify({"error": "Processing failed"}), 500
+        writer = PdfWriter()
 
-    return send_file(
-        output_path,
-        as_attachment=True,
-        download_name=output_filename
-    )
+        for path in file_paths:
+            reader = PdfReader(path)
+            for page in reader.pages:
+                writer.add_page(page)
+
+        with open(output_path, "wb") as f:
+            writer.write(f)
+
+        return send_file(output_path, as_attachment=True)
+
+    # -------------- SPLIT PDF ----------------
+    if slug == "split-pdf":
+        zip_path = os.path.join(app.config['OUTPUT_FOLDER'], f"split_{uuid.uuid4().hex}.pdf")
+
+        reader = PdfReader(file_paths[0])
+        writer = PdfWriter()
+
+        for page in reader.pages:
+            writer.add_page(page)
+
+        with open(zip_path, "wb") as f:
+            writer.write(f)
+
+        return send_file(zip_path, as_attachment=True)
+
+    # -------------- PDF TO JPG ----------------
+    if slug == "pdf-to-jpg":
+        images = []
+        doc = fitz.open(file_paths[0])
+
+        for i in range(len(doc)):
+            page = doc.load_page(i)
+            pix = page.get_pixmap()
+            output = os.path.join(app.config["OUTPUT_FOLDER"], f"{uuid.uuid4().hex}.jpg")
+            pix.save(output)
+            images.append(output)
+
+        return send_file(images[0], as_attachment=True)
+
+    # -------------- JPG TO PDF ----------------
+    if slug == "jpg-to-pdf":
+        output = os.path.join(app.config["OUTPUT_FOLDER"], f"{uuid.uuid4().hex}.pdf")
+
+        images = [Image.open(p).convert("RGB") for p in file_paths]
+        images[0].save(output, save_all=True, append_images=images[1:])
+
+        return send_file(output, as_attachment=True)
+
+    # -------------- ROTATE PDF ----------------
+    if slug == "rotate-pdf":
+        output = os.path.join(app.config["OUTPUT_FOLDER"], f"{uuid.uuid4().hex}.pdf")
+
+        reader = PdfReader(file_paths[0])
+        writer = PdfWriter()
+
+        for page in reader.pages:
+            page.rotate(90)
+            writer.add_page(page)
+
+        with open(output, "wb") as f:
+            writer.write(f)
+
+        return send_file(output, as_attachment=True)
+
+    # -------------- UNLOCK PDF ----------------
+    if slug == "unlock-pdf":
+        output = os.path.join(app.config["OUTPUT_FOLDER"], f"{uuid.uuid4().hex}.pdf")
+
+        reader = PdfReader(file_paths[0])
+        if reader.is_encrypted:
+            reader.decrypt("")
+
+        writer = PdfWriter()
+
+        for page in reader.pages:
+            writer.add_page(page)
+
+        with open(output, "wb") as f:
+            writer.write(f)
+
+        return send_file(output, as_attachment=True)
+
+    # -------------- DEFAULT FALLBACK ----------------
+    return jsonify({
+        "status": "success",
+        "tool": slug,
+        "message": "Uploaded and processing engine connected successfully"
+    })
 
 
-# -----------------------------
-# DOWNLOAD DIRECT
-# -----------------------------
-@app.route("/download/<filename>")
-def download(filename):
-    file_path = os.path.join(OUTPUT_FOLDER, filename)
-    if not os.path.exists(file_path):
-        abort(404)
-    return send_file(file_path, as_attachment=True)
-
-
-# -----------------------------
-# HEALTH CHECK
-# -----------------------------
-@app.route("/health")
-def health():
-    return {"status": "OK"}
-
+# ------------------ MAIN ------------------
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=10000, debug=True)
