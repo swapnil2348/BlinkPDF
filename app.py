@@ -9,14 +9,18 @@ from PIL import Image
 from docx import Document
 from pptx import Presentation
 from reportlab.pdfgen import canvas
-
 from pdf_processor import PDFProcessor
+from werkzeug.exceptions import RequestEntityTooLarge
 
 # -------------------
 # APP INIT (FIXED)
 # -------------------
-app = Flask(__name__)   # ✅ FIXED HERE
+app = Flask(__name__)
 
+@app.errorhandler(RequestEntityTooLarge)
+def file_too_large(e):
+    return "File too large. Maximum allowed: 500MB", 413
+    
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 OUTPUT_FOLDER = os.path.join(BASE_DIR, "outputs")
@@ -26,9 +30,10 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["OUTPUT_FOLDER"] = OUTPUT_FOLDER
-app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100MB
+app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500MB
 
-pdf_processor = PDFProcessor()
+# ✅ FIXED CONSTRUCTOR CALL
+pdf_processor = PDFProcessor(OUTPUT_FOLDER)
 
 # --------------------------------------------------------------------
 # FULL TOOL LIST (33 NORMAL TOOLS)
