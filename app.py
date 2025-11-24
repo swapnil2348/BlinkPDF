@@ -68,36 +68,56 @@ def tool_page(slug):
 def process_tool(slug):
     """
     Handle file uploads and delegate actual work to pdf_processor.process_pdf.
+    Supports single + multiple files correctly
     """
+
     tool = SLUG_TO_TOOL.get(slug)
     if not tool:
         return abort(404)
 
-    if "files" not in request.files:
-        return "No files uploaded", 400
+    uploaded_files = []
 
-    files = request.files.getlist("files")
-    if not files:
-        return "No files selected", 400
+    # ✅ First: check correct input name = "file" (YOUR HTML USES THIS)
+    if "file" in request.files:
+        files = request.files.getlist("file")
+        for f in files:
+            if f and f.filename.strip() != "":
+                uploaded_files.append(f)
+
+    # ✅ Backup: also support name="files" if ever used
+    if not uploaded_files and "files" in request.files:
+        files = request.files.getlist("files")
+        for f in files:
+            if f and f.filename.strip() != "":
+                uploaded_files.append(f)
+
+    # ❌ No file found
+    if not uploaded_files:
+        return "No files uploaded", 400
 
     saved_paths = []
 
-    # Save uploaded files
-    for f in files:
-        if not f or f.filename == "":
-            continue
+    # ✅ Save files
+    for f in uploaded_files:
         filename = secure_filename(f"{uuid.uuid4().hex}_{f.filename}")
         filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-        f.save(filepath)
-        saved_paths.append(filepath)
+
+        try:
+            f.save(filepath)
+            saved_paths.append(filepath)
+        except Exception as e:
+            print("SAVE ERROR:", e)
 
     if not saved_paths:
         return "No valid files uploaded", 400
 
-    # Extra options from the form (rotation, password, etc.)
+    # ✅ Read tool options from form
     form_data = request.form.to_dict()
 
-    # Call central processing engine
+    print("FILES:", saved_paths)
+    print("FORM:", form_data)
+
+    # ✅ Call processing engine
     result = process_pdf(
         slug=slug,
         file_paths=saved_paths,
@@ -105,33 +125,41 @@ def process_tool(slug):
         form_data=form_data,
     )
 
-    # Handle response from processing engine
     if not isinstance(result, dict):
         return "Processing engine error", 500
 
     rtype = result.get("type")
 
+    # ✅ File download
     if rtype == "file":
         path = result.get("path")
         mimetype = result.get("mimetype", "application/octet-stream")
         download_name = result.get("download_name") or os.path.basename(path)
+
         if not path or not os.path.exists(path):
             return "Output file missing", 500
-        return send_file(path, as_attachment=True, download_name=download_name, mimetype=mimetype)
 
+        return send_file(
+            path,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype=mimetype,
+            max_age=0
+        )
+
+    # ✅ Json return
     if rtype == "json":
         data = result.get("data", {})
         status_code = result.get("status_code", 200)
         return jsonify(data), status_code
 
+    # ✅ Error return
     if rtype == "error":
         data = result.get("data", {})
         status_code = result.get("status_code", 400)
         return jsonify(data), status_code
 
-    # Fallback – should not happen
     return jsonify({"message": "Unknown processing response"}), 500
-
 
 # ---------------------------------------------------
 # AI TOOLS PAGE (NAVBAR LINK)
