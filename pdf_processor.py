@@ -59,20 +59,31 @@ def process_pdf(slug: str, file_paths, output_folder: str, form_data: dict):
         output_path = os.path.join(output_folder, f"merged_{uuid.uuid4().hex}.pdf")
 
         writer = PdfWriter()
+
+        page_order = form_data.get("page_order", "")
+        order = [int(x) for x in page_order.split(",") if x.strip().isdigit()] if page_order else None
+
         for path in file_paths:
-            reader = PdfReader(path)
+        reader = PdfReader(path)
+
+        if order:
+            for idx in order:
+                if idx-1 < len(reader.pages):
+                    writer.add_page(reader.pages[idx-1])
+        else:
             for page in reader.pages:
                 writer.add_page(page)
 
         with open(output_path, "wb") as f:
-            writer.write(f)
+        writer.write(f)
 
-        return {
-            "type": "file",
-            "path": output_path,
-            "mimetype": "application/pdf",
-            "download_name": "merged.pdf",
-        }
+    return {
+        "type": "file",
+        "path": output_path,
+        "mimetype": "application/pdf",
+        "download_name": "merged.pdf"
+    }
+
 
     # -----------------------------
     # 2. SPLIT PDF  -> ZIP OF PER-PAGE PDFs
@@ -106,26 +117,26 @@ def process_pdf(slug: str, file_paths, output_folder: str, form_data: dict):
     # 3. COMPRESS PDF (very basic)
     # -----------------------------
     if slug == "compress-pdf":
-        # NOTE: True high-quality compression would use qpdf/ghostscript.
-        # This is a placeholder – re-write pages into a new PDF.
-        input_path = file_paths[0]
-        reader = PdfReader(input_path)
-        writer = PdfWriter()
+    input_path = file_paths[0]
+    output_path = os.path.join(output_folder, f"compressed_{uuid.uuid4().hex}.pdf")
 
-        # Option: you can drop metadata / annotations for some size benefit
-        for page in reader.pages:
-            writer.add_page(page)
+    doc = fitz.open(input_path)
 
-        output_path = os.path.join(output_folder, f"compressed_{uuid.uuid4().hex}.pdf")
-        with open(output_path, "wb") as f:
-            writer.write(f)
+    # Reduce image quality for compression
+    for page in doc:
+        for img in page.get_images(full=True):
+            xref = img[0]
+            doc.update_image(xref, stream=doc.extract_image(xref)['image'])
 
-        return {
-            "type": "file",
-            "path": output_path,
-            "mimetype": "application/pdf",
-            "download_name": "compressed.pdf",
-        }
+    doc.save(output_path, garbage=4, deflate=True, clean=True)
+
+    return {
+        "type": "file",
+        "path": output_path,
+        "mimetype": "application/pdf",
+        "download_name": "compressed.pdf"
+    }
+
 
     # -----------------------------
     # 4. ROTATE PDF
@@ -136,7 +147,7 @@ def process_pdf(slug: str, file_paths, output_folder: str, form_data: dict):
         writer = PdfWriter()
 
         # Default rotation is 90 degrees clockwise
-        rotation_str = form_data.get("rotation", "90")
+        rotation_str = form_data.get("rotation_angle", "90")
         try:
             rotation = int(rotation_str)
         except ValueError:
