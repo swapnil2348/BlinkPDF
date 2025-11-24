@@ -152,14 +152,12 @@ document.addEventListener('DOMContentLoaded', function(){
       'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
   }
 
-  uploadArea.addEventListener('click', () => fileInput.click());
+  // ✅ NO uploadArea click here anymore
 
   fileInput.addEventListener('change', function(){
     const files = fileInput.files;
-
     if(!files.length) return;
 
-    // copy to hidden input
     const dt = new DataTransfer();
     for(let f of files) dt.items.add(f);
     hiddenInput.files = dt.files;
@@ -170,7 +168,6 @@ document.addEventListener('DOMContentLoaded', function(){
       : files.length + ' files selected';
 
     const first = files[0];
-
     if(!first.name.toLowerCase().endsWith('.pdf')) return;
 
     const reader = new FileReader();
