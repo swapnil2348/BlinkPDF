@@ -476,6 +476,7 @@ def process_pdf(
 
         # -------- Rotate -------- #
         if slug == "rotate-pdf":
+            angle = 180
             angle_str = form_data.get("rotation_angle", "0")
             try:
                 angle = int(angle_str)
