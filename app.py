@@ -50,12 +50,9 @@ from tools import SLUG_TO_AI_TOOL
 
 @app.route("/ai/<slug>")
 def ai_tool_page(slug):
-
     tool = SLUG_TO_AI_TOOL.get(slug)
-
     if not tool:
         return abort(404)
-
     return render_template("ai_tool.html", tool=tool)
 
 
