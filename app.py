@@ -20,6 +20,26 @@ from tools import TOOLS, AI_TOOLS, SLUG_TO_TOOL
 # Central processing engine
 from pdf_processor import process_pdf
 
+from tools import SLUG_TO_AI_TOOL
+# ---------------------------------------------------
+# AI TOOL ROUTES (NO MORE 404)
+# ---------------------------------------------------
+
+@app.route("/ai/<slug>")
+def ai_tool_page(slug):
+    tool = SLUG_TO_AI_TOOL.get(f"ai-{slug}") or SLUG_TO_AI_TOOL.get(slug)
+    if not tool:
+        return abort(404)
+
+    # If you already have separate templates, it will use them
+    template_name = f"ai/{slug}.html"
+
+    # fallback template if you are still building them
+    try:
+        return render_template(template_name, tool=tool)
+    except:
+        return render_template("ai_placeholder.html", tool=tool)
+
 
 # ---------------------------------------------------
 # BASIC FLASK SETUP
