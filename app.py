@@ -69,13 +69,9 @@ def index():
 
 @app.route("/tool/<slug>")
 def tool_page(slug):
-    """
-    Individual tool page.
-    """
     tool = SLUG_TO_TOOL.get(slug)
     if not tool:
         return abort(404)
-
     return render_template("tool_page.html", tool=tool)
 
 
