@@ -48,20 +48,17 @@ from tools import SLUG_TO_AI_TOOL
 # AI TOOL ROUTES (NO MORE 404)
 # ---------------------------------------------------
 
-@app.route("/ai/<slug>")
+@app.route("/ai/<path:slug>")
 def ai_tool_page(slug):
-    tool = SLUG_TO_AI_TOOL.get(f"ai-{slug}") or SLUG_TO_AI_TOOL.get(slug)
+    clean_slug = "ai-" + slug.replace("-page", "").replace("/", "")
+
+    tool = SLUG_TO_AI_TOOL.get(clean_slug)
     if not tool:
         return abort(404)
 
-    # If you already have separate templates, it will use them
-    template_name = f"ai/{slug}.html"
+    # ALWAYS use one template
+    return render_template("ai_tool.html", tool=tool)
 
-    # fallback template if you are still building them
-    try:
-        return render_template(template_name, tool=tool)
-    except:
-        return render_template("ai_placeholder.html", tool=tool)
 
 @app.route("/")
 def index():

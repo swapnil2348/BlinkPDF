@@ -1,44 +1,44 @@
 {% extends "base.html" %}
 
-{% block title %}
-AI Powered Tools — BlinkPDF
-{% endblock %}
-
-{% block meta %}
-AI powered PDF tools — edit, summarize, chat with, translate and extract tables from your PDFs using smart workflows.
-{% endblock %}
+{% block title %}{{ tool.title }} - BlinkPDF{% endblock %}
 
 {% block content %}
+<section class="max-w-6xl mx-auto py-16">
 
-<!-- PAGE HEADING -->
-<section class="max-w-7xl mx-auto px-4 py-8">
-  <h1 class="text-3xl font-bold text-gray-900 mb-2">AI Powered Tools</h1>
-  <p class="text-gray-600 max-w-2xl">
-    Enhance your PDFs with intelligent workflows: live editing, smart summaries, chat, translation and table extraction.
-  </p>
-</section>
+    <h1 class="text-3xl font-bold text-slate-900 mb-2">
+        {{ tool.title }}
+    </h1>
 
-<!-- AI TOOLS GRID -->
-<section class="max-w-7xl mx-auto px-4 pb-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+    <p class="text-slate-600 mb-8">
+        This AI tool is now connected. Backend AI integration will be applied next.
+    </p>
 
-  {% for t in ai_tools %}
-  <a href="{{ t.url }}"
-     class="bg-white rounded-xl border p-4 hover:shadow transition flex flex-col items-start space-y-3">
+    <div class="grid gap-6 md:grid-cols-2">
 
-    <img
-      src="{{ url_for('static', filename='icons/' ~ t.icon) }}"
-      class="h-12 w-12"
-      alt="{{ t.title }} icon"
-    >
+        <!-- Input -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow">
+            <h2 class="font-semibold mb-2">Input</h2>
 
-    <div class="flex-1 min-w-0">
-      <h3 class="font-semibold text-gray-900">{{ t.title }}</h3>
-      <p class="text-gray-600 text-sm">{{ t.desc }}</p>
+            <textarea rows="8"
+                class="w-full p-4 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-violet-600"
+                placeholder="Paste text or instructions here..."></textarea>
+
+            <button
+                class="mt-4 px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-semibold">
+                Process
+            </button>
+        </div>
+
+        <!-- Output -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow">
+            <h2 class="font-semibold mb-2">Output</h2>
+
+            <div class="w-full p-4 rounded-xl border border-dashed border-slate-300 min-h-[200px]">
+                AI response will appear here...
+            </div>
+        </div>
+
     </div>
 
-  </a>
-  {% endfor %}
-
 </section>
-
 {% endblock %}
