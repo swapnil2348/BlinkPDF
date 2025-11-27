@@ -1,233 +1,84 @@
 # tools.py
 
+# ---------------- PDF TOOLS (33) ----------------
+
 TOOLS = [
-    {
-        "slug": "merge-pdf",
-        "title": "Merge PDF",
-        "icon": "merge-pdf.svg",
-        "desc": "Combine multiple PDF files into one."
-    },
-    {
-        "slug": "split-pdf",
-        "title": "Split PDF",
-        "icon": "split-pdf.svg",
-        "desc": "Extract specific pages into a new PDF."
-    },
-    {
-        "slug": "compress-pdf",
-        "title": "Compress PDF",
-        "icon": "compress-pdf.svg",
-        "desc": "Reduce PDF file size while keeping quality."
-    },
-    {
-        "slug": "optimize-pdf",
-        "title": "Optimize PDF",
-        "icon": "optimize-pdf.svg",
-        "desc": "Clean and optimize PDFs for smaller size."
-    },
-    {
-        "slug": "rotate-pdf",
-        "title": "Rotate PDF",
-        "icon": "rotate-pdf.svg",
-        "desc": "Rotate all or selected pages in your PDF."
-    },
-    {
-        "slug": "watermark-pdf",
-        "title": "Watermark PDF",
-        "icon": "watermark-pdf.svg",
-        "desc": "Add custom text watermark across PDF pages."
-    },
-    {
-        "slug": "number-pdf",
-        "title": "Number Pages",
-        "icon": "number-pdf.svg",
-        "desc": "Add page numbers to your PDF document."
-    },
-    {
-        "slug": "protect-pdf",
-        "title": "Protect PDF",
-        "icon": "protect-pdf.svg",
-        "desc": "Lock your PDF with a password."
-    },
-    {
-        "slug": "unlock-pdf",
-        "title": "Unlock PDF",
-        "icon": "unlock-pdf.svg",
-        "desc": "Remove password protection from PDFs."
-    },
-    {
-        "slug": "repair-pdf",
-        "title": "Repair PDF",
-        "icon": "repair-pdf.svg",
-        "desc": "Try to fix broken or corrupted PDFs."
-    },
-    {
-        "slug": "organize-pdf",
-        "title": "Organize PDF",
-        "icon": "organize-pdf.svg",
-        "desc": "Reorder, remove or duplicate PDF pages."
-    },
-    {
-        "slug": "sign-pdf",
-        "title": "Sign PDF",
-        "icon": "sign-pdf.svg",
-        "desc": "Add signatures to your PDF files."
-    },
-    {
-        "slug": "annotate-pdf",
-        "title": "Annotate PDF",
-        "icon": "annotate-pdf.svg",
-        "desc": "Highlight, comment and markup PDF pages."
-    },
-    {
-        "slug": "redact-pdf",
-        "title": "Redact PDF",
-        "icon": "redact-pdf.svg",
-        "desc": "Black out sensitive content in PDFs."
-    },
-    {
-        "slug": "pdf-to-word",
-        "title": "PDF to Word",
-        "icon": "pdf-to-word.svg",
-        "desc": "Convert PDFs into editable Word documents."
-    },
-    {
-        "slug": "word-to-pdf",
-        "title": "Word to PDF",
-        "icon": "word-to-pdf.svg",
-        "desc": "Convert DOC/DOCX files into PDF."
-    },
-    {
-        "slug": "pdf-to-image",
-        "title": "PDF to Image",
-        "icon": "pdf-to-image.svg",
-        "desc": "Export PDF pages as JPG or PNG images."
-    },
-    {
-        "slug": "image-to-pdf",
-        "title": "Image to PDF",
-        "icon": "image-to-pdf.svg",
-        "desc": "Combine JPG/PNG/WEBP images into a PDF."
-    },
-    {
-        "slug": "pdf-to-excel",
-        "title": "PDF to Excel",
-        "icon": "pdf-to-excel.svg",
-        "desc": "Convert PDF tables into Excel spreadsheets."
-    },
-    {
-        "slug": "excel-to-pdf",
-        "title": "Excel to PDF",
-        "icon": "excel-to-pdf.svg",
-        "desc": "Turn XLS/XLSX files into PDF."
-    },
-    {
-        "slug": "pdf-to-powerpoint",
-        "title": "PDF to PowerPoint",
-        "icon": "pdf-to-powerpoint.svg",
-        "desc": "Convert PDF slides into PowerPoint."
-    },
-    {
-        "slug": "powerpoint-to-pdf",
-        "title": "PowerPoint to PDF",
-        "icon": "powerpoint-to-pdf.svg",
-        "desc": "Export PPT/PPTX slides as PDF."
-    },
-    {
-        "slug": "ocr-pdf",
-        "title": "OCR PDF",
-        "icon": "ocr-pdf.svg",
-        "desc": "Recognize text in scanned PDF pages."
-    },
-    {
-        "slug": "extract-text",
-        "title": "Extract Text",
-        "icon": "extract-text.svg",
-        "desc": "Pull all text content from a PDF."
-    },
-    {
-        "slug": "extract-images",
-        "title": "Extract Images",
-        "icon": "extract-images.svg",
-        "desc": "Save all embedded images from a PDF."
-    },
-    {
-        "slug": "deskew-pdf",
-        "title": "Deskew PDF",
-        "icon": "deskew-pdf.svg",
-        "desc": "Straighten tilted scanned PDF pages."
-    },
-    {
-        "slug": "crop-pdf",
-        "title": "Crop PDF",
-        "icon": "crop-pdf.svg",
-        "desc": "Trim margins and crop PDF page content."
-    },
-    {
-        "slug": "resize-pdf",
-        "title": "Resize PDF",
-        "icon": "resize-pdf.svg",
-        "desc": "Change page size or scale content."
-    },
-    {
-        "slug": "flatten-pdf",
-        "title": "Flatten PDF",
-        "icon": "flatten-pdf.svg",
-        "desc": "Flatten annotations and form fields."
-    },
-    {
-        "slug": "metadata-editor",
-        "title": "Metadata Editor",
-        "icon": "metadata-editor.svg",
-        "desc": "View and edit PDF title, author, etc."
-    },
-    {
-        "slug": "fill-forms",
-        "title": "Fill PDF Forms",
-        "icon": "fill-forms.svg",
-        "desc": "Fill interactive form fields in PDFs."
-    },
-    {
-        "slug": "background-remover",
-        "title": "Remove Background",
-        "icon": "background-remover.svg",
-        "desc": "Erase background from images using AI."
-    },
+
+    {"slug": "merge-pdf", "title": "Merge PDF", "icon": "merge-pdf.svg", "description": "Combine multiple PDF files into one document"},
+    {"slug": "split-pdf", "title": "Split PDF", "icon": "split-pdf.svg", "description": "Split a PDF into multiple files"},
+    {"slug": "compress-pdf", "title": "Compress PDF", "icon": "compress-pdf.svg", "description": "Reduce PDF size without losing quality"},
+    {"slug": "optimize-pdf", "title": "Optimize PDF", "icon": "optimize-pdf.svg", "description": "Optimize PDF for web and mobile"},
+    {"slug": "rotate-pdf", "title": "Rotate PDF", "icon": "rotate-pdf.svg", "description": "Rotate pages at any angle"},
+    {"slug": "watermark-pdf", "title": "Watermark PDF", "icon": "watermark-pdf.svg", "description": "Add watermark text or image"},
+    {"slug": "number-pdf", "title": "Number Pages", "icon": "number-pdf.svg", "description": "Insert page numbers in PDF"},
+    {"slug": "protect-pdf", "title": "Protect PDF", "icon": "protect-pdf.svg", "description": "Add password to PDF file"},
+    {"slug": "unlock-pdf", "title": "Unlock PDF", "icon": "unlock-pdf.svg", "description": "Remove password from a PDF"},
+    {"slug": "repair-pdf", "title": "Repair PDF", "icon": "repair-pdf.svg", "description": "Fix corrupted PDF files"},
+    {"slug": "organize-pdf", "title": "Organize PDF", "icon": "organize-pdf.svg", "description": "Rearrange PDF pages"},
+    {"slug": "sign-pdf", "title": "Sign PDF", "icon": "sign-pdf.svg", "description": "Sign your PDF electronically"},
+    {"slug": "annotate-pdf", "title": "Annotate PDF", "icon": "annotate-pdf.svg", "description": "Add notes & comments"},
+    {"slug": "redact-pdf", "title": "Redact PDF", "icon": "redact-pdf.svg", "description": "Hide confidential content"},
+    {"slug": "pdf-to-word", "title": "PDF to Word", "icon": "pdf-to-word.svg", "description": "Convert PDF to DOCX file"},
+    {"slug": "word-to-pdf", "title": "Word to PDF", "icon": "word-to-pdf.svg", "description": "Convert DOCX to PDF"},
+    {"slug": "pdf-to-image", "title": "PDF to Image", "icon": "pdf-to-image.svg", "description": "Convert PDF pages to images"},
+    {"slug": "image-to-pdf", "title": "Image to PDF", "icon": "image-to-pdf.svg", "description": "Convert images to PDF"},
+    {"slug": "pdf-to-excel", "title": "PDF to Excel", "icon": "pdf-to-excel.svg", "description": "Convert PDF data to Excel"},
+    {"slug": "excel-to-pdf", "title": "Excel to PDF", "icon": "excel-to-pdf.svg", "description": "Convert XLSX to PDF"},
+    {"slug": "pdf-to-powerpoint", "title": "PDF to PowerPoint", "icon": "pdf-to-powerpoint.svg", "description": "PDF to PPTX"},
+    {"slug": "powerpoint-to-pdf", "title": "PowerPoint to PDF", "icon": "powerpoint-to-pdf.svg", "description": "PPTX to PDF"},
+    {"slug": "ocr-pdf", "title": "OCR PDF", "icon": "ocr-pdf.svg", "description": "Extract text using OCR"},
+    {"slug": "extract-text", "title": "Extract Text", "icon": "extract-text.svg", "description": "Extract text from PDF"},
+    {"slug": "extract-images", "title": "Extract Images", "icon": "extract-images.svg", "description": "Extract images from PDF"},
+    {"slug": "deskew-pdf", "title": "Deskew PDF", "icon": "deskew-pdf.svg", "description": "Fix tilted PDF pages"},
+    {"slug": "crop-pdf", "title": "Crop PDF", "icon": "crop-pdf.svg", "description": "Crop PDF margins"},
+    {"slug": "resize-pdf", "title": "Resize PDF", "icon": "resize-pdf.svg", "description": "Resize PDF pages"},
+    {"slug": "flatten-pdf", "title": "Flatten PDF", "icon": "flatten-pdf.svg", "description": "Flatten form fields"},
+    {"slug": "metadata-editor", "title": "Metadata Editor", "icon": "metadata-editor.svg", "description": "Edit PDF metadata"},
+    {"slug": "fill-forms", "title": "Fill PDF Forms", "icon": "fill-forms.svg", "description": "Fill & save PDF forms"},
+    {"slug": "background-remover", "title": "Remove Background", "icon": "background-remover.svg", "description": "Remove image background"},
+
 ]
+
+
+# ---------------- AI TOOLS (5) ----------------
 
 AI_TOOLS = [
+
     {
-        "slug": "ai-editor",
+        "slug": "editor",
         "title": "AI PDF Editor",
-        "url": "/ai/editor",
-        "desc": "Edit, rewrite and improve PDF text with AI."
+        "icon": "ai-editor.svg",
+        "description": "Edit PDF documents with AI"
     },
     {
-        "slug": "ai-summarizer",
+        "slug": "summarizer",
         "title": "AI Summarizer",
-        "url": "/ai/summarizer-page",
-        "desc": "Generate short summaries of long PDFs."
+        "icon": "ai-summarizer.svg",
+        "description": "Summarize your PDF using AI"
     },
     {
-        "slug": "ai-chat",
+        "slug": "chat",
         "title": "Chat with PDF",
-        "url": "/ai/chat-page",
-        "desc": "Ask questions and chat with your document."
+        "icon": "ai-chat.svg",
+        "description": "Ask questions from your PDF"
     },
     {
-        "slug": "ai-translate",
+        "slug": "translator",
         "title": "AI Translator",
-        "url": "/ai/translate-page",
-        "desc": "Translate PDF content into any language."
+        "icon": "ai-translate.svg",
+        "description": "Translate PDF into any language"
     },
     {
-        "slug": "ai-table-extract",
+        "slug": "table-extract",
         "title": "AI Table Extractor",
-        "url": "/ai/table-page",
-        "desc": "Pull clean tables from PDFs using AI."
+        "icon": "ai-table.svg",
+        "description": "Extract tables using AI"
     },
+
 ]
 
 
-SLUG_TO_TOOL = {t["slug"]: t for t in TOOLS}
-SLUG_TO_AI_TOOL = {t["slug"]: t for t in AI_TOOLS}
+# ---------------- SLUG MAPS ----------------
+
+SLUG_TO_TOOL = {tool["slug"]: tool for tool in TOOLS}
+SLUG_TO_AI_TOOL = {tool["slug"]: tool for tool in AI_TOOLS}
