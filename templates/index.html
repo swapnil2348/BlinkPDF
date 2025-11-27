@@ -101,7 +101,7 @@
   <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
 
     {% for t in ai_tools %}
-    <a href="{{ url_for('ai_page', slug=t.slug) }}"
+    <a href="{{ url_for('ai_tool_page', slug=t.slug) }}"
        class="tool-card bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800
               shadow-[0_4px_12px_rgba(15,23,42,0.06)]
               hover:shadow-[0_10px_30px_rgba(124,58,237,0.20)]
