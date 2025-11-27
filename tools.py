@@ -230,3 +230,4 @@ AI_TOOLS = [
 
 
 SLUG_TO_TOOL = {t["slug"]: t for t in TOOLS}
+SLUG_TO_AI_TOOL = {t["slug"]: t for t in AI_TOOLS}
