@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ tool.title }} — BlinkPDF{% endblock %}
 {% block meta %}{{ tool.desc }}{% endblock %}
-
 {% block content %}
 <section class="bg-gradient-to-b from-violet-50 to-white py-10">
   <div id="tool-root"
@@ -414,6 +413,8 @@
     </div>
   </div>
 </section>
+
+{% endblock %}
 
 <!-- PDF.js (for local preview only) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
@@ -1160,3 +1161,4 @@
     }
   });
 </script>
+{% endblock %}
