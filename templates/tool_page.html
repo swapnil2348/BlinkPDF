@@ -471,10 +471,94 @@
     let activeCropBox = null;
     let cropDragOffset = { x: 0, y: 0 };
 
+    // PDF.js state for single-page preview navigation
+    let pdfDoc = null;
+    let pdfPageCount = 0;
+    let currentPreviewPage = 1;
+
+    // File list state for merge / image-to-pdf
+    let currentFilesArray = [];
+    let fileListContainer = null;
+    let dragIndex = null;
+
+    // If merge or image-to-pdf, create file list container under upload area
+    if (uploadArea && (toolSlug === 'merge-pdf' || toolSlug === 'image-to-pdf')) {
+      fileListContainer = document.createElement('div');
+      fileListContainer.id = 'file-list';
+      fileListContainer.className = 'mt-3 space-y-1 text-left';
+      uploadArea.insertAdjacentElement('afterend', fileListContainer);
+    }
+
+    // Page navigation controls for preview (Prev / Next)
+    let pageIndicatorEl = null;
+    let prevBtn = null;
+    let nextBtn = null;
+
+    function ensurePageNavControls() {
+      if (!previewWrapper) return;
+      if (document.getElementById('preview-page-indicator')) {
+        pageIndicatorEl = document.getElementById('preview-page-indicator');
+        prevBtn = document.getElementById('preview-prev-page');
+        nextBtn = document.getElementById('preview-next-page');
+        return;
+      }
+      const bar = document.createElement('div');
+      bar.className =
+        'flex items-center justify-center gap-3 px-3 py-2 border-t border-slate-200 bg-slate-50/80';
+
+      prevBtn = document.createElement('button');
+      prevBtn.id = 'preview-prev-page';
+      prevBtn.type = 'button';
+      prevBtn.className =
+        'px-2 py-1 rounded-full border border-slate-200 text-[11px] text-slate-500 hover:border-violet-300';
+      prevBtn.textContent = '‹ Prev page';
+
+      nextBtn = document.createElement('button');
+      nextBtn.id = 'preview-next-page';
+      nextBtn.type = 'button';
+      nextBtn.className =
+        'px-2 py-1 rounded-full border border-slate-200 text-[11px] text-slate-500 hover:border-violet-300';
+      nextBtn.textContent = 'Next page ›';
+
+      pageIndicatorEl = document.createElement('span');
+      pageIndicatorEl.id = 'preview-page-indicator';
+      pageIndicatorEl.className = 'text-[11px] text-slate-400';
+
+      bar.appendChild(prevBtn);
+      bar.appendChild(pageIndicatorEl);
+      bar.appendChild(nextBtn);
+
+      previewWrapper.appendChild(bar);
+
+      prevBtn.addEventListener('click', async () => {
+        if (!pdfDoc) return;
+        if (currentPreviewPage > 1) {
+          currentPreviewPage -= 1;
+          await renderSinglePage(currentPreviewPage);
+          updatePageIndicator();
+        }
+      });
+
+      nextBtn.addEventListener('click', async () => {
+        if (!pdfDoc) return;
+        if (currentPreviewPage < pdfPageCount) {
+          currentPreviewPage += 1;
+          await renderSinglePage(currentPreviewPage);
+          updatePageIndicator();
+        }
+      });
+    }
+
+    function updatePageIndicator() {
+      if (pageIndicatorEl && pdfPageCount > 0) {
+        pageIndicatorEl.textContent = 'Page ' + currentPreviewPage + ' of ' + pdfPageCount;
+      }
+    }
+
     // --- PDF.js worker config ---
     if (window['pdfjsLib']) {
       pdfjsLib.GlobalWorkerOptions.workerSrc =
-            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
     }
 
     function humanFileSize(bytes) {
@@ -494,18 +578,24 @@
       previewContent.classList.add('hidden');
       currentRotation = 0;
       activeCropBox = null;
+
+      pdfDoc = null;
+      pdfPageCount = 0;
+      currentPreviewPage = 1;
+
       if (rotationSlider && rotationLabel && rotationAngleInput) {
         rotationSlider.value = 0;
         rotationLabel.textContent = '0°';
         rotationAngleInput.value = 0;
       }
+      const indicator = document.getElementById('preview-page-indicator');
+      if (indicator) indicator.textContent = '';
     }
 
     function applyRotationToThumbnails(angle) {
       const canvases = previewThumbnails.querySelectorAll('canvas');
       canvases.forEach(cv => {
         cv.style.transform = 'rotate(' + angle + 'deg)';
-        cv.style.transition = '0.3s';
       });
     }
 
@@ -525,11 +615,9 @@
     }
 
     function setupPageControls() {
-      // PRO++ page include + reorder controls
       const wrappers = previewThumbnails.querySelectorAll('.thumb-wrapper');
       wrappers.forEach(w => {
         const pageNumber = w.dataset.pageNumber;
-        // Skip if already added
         if (w.querySelector('.page-control-bar')) return;
 
         const controlBar = document.createElement('div');
@@ -599,7 +687,6 @@
       const wrappers = previewThumbnails.querySelectorAll('.thumb-wrapper');
 
       wrappers.forEach(w => {
-        // Avoid duplicates
         if (w.querySelector('.crop-box')) return;
         const canvas = w.querySelector('canvas');
         if (!canvas) return;
@@ -613,12 +700,10 @@
         box.style.height = '70%';
         box.dataset.pageNumber = w.dataset.pageNumber;
 
-        // Make wrapper position:relative if not already
         if (getComputedStyle(w).position === 'static') {
           w.style.position = 'relative';
         }
 
-        // Dragging (move only, no resize for now)
         box.addEventListener('mousedown', (e) => {
           e.preventDefault();
           activeCropBox = box;
@@ -641,7 +726,7 @@
         let newTop = e.clientY - wRect.top - cropDragOffset.y;
 
         const maxLeft = wRect.width - activeCropBox.offsetWidth - 4;
-        const maxTop = wRect.height - activeCropBox.offsetHeight - 24; // leave room for page label + controls
+        const maxTop = wRect.height - activeCropBox.offsetHeight - 24;
 
         newLeft = Math.max(0, Math.min(newLeft, maxLeft));
         newTop = Math.max(0, Math.min(newTop, maxTop));
@@ -658,60 +743,39 @@
       });
     }
 
-    async function renderPdfPreview(file) {
-      if (!window['pdfjsLib']) return;
+    async function renderSinglePage(pageNum) {
+      if (!pdfDoc) return;
 
-      resetPreview();
-      showPreviewPanel();
+      previewThumbnails.innerHTML = '';
 
-      previewFilename.textContent = file.name || 'document.pdf';
-      previewSize.textContent = humanFileSize(file.size);
+      const page = await pdfDoc.getPage(pageNum);
+      const containerWidth = previewWrapper.clientWidth - 40;
+      const viewportAt1 = page.getViewport({ scale: 1 });
+      const scale = containerWidth / viewportAt1.width;
+      const viewport = page.getViewport({ scale: scale });
 
-      const uint8 = new Uint8Array(await file.arrayBuffer());
-      let doc;
-      try {
-        doc = await pdfjsLib.getDocument({ data: uint8 }).promise;
-      } catch (e) {
-        console.error('PDF preview error:', e);
-        resetPreview();
-        return;
-      }
+      const wrapper = document.createElement('div');
+      wrapper.className =
+        'thumb-wrapper relative bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden flex flex-col max-w-full max-h-full';
+      wrapper.dataset.pageNumber = String(pageNum);
 
-      const pageCount = doc.numPages || 0;
-      previewPagesCount.textContent = pageCount + (pageCount === 1 ? ' page' : ' pages');
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      canvas.className = 'max-w-full max-h-full object-contain block mx-auto bg-slate-100';
 
-      const maxPages = 1;  // single-page preview
-      for (let i = 1; i <= maxPages; i++) {
-        const page = await doc.getPage(i);
-        const containerWidth = previewWrapper.clientWidth - 40;
+      const pageLabel = document.createElement('div');
+      pageLabel.className =
+        'px-1.5 py-1 text-[10px] text-slate-500 border-t border-slate-100 bg-slate-50 text-right';
+      pageLabel.textContent = 'Page ' + pageNum;
 
-        const scale = containerWidth / page.getViewport({ scale: 1 }).width;
-        const viewport = page.getViewport({ scale: scale });
+      wrapper.appendChild(canvas);
+      wrapper.appendChild(pageLabel);
+      previewThumbnails.appendChild(wrapper);
 
-        const wrapper = document.createElement('div');
-        wrapper.className =
-          'thumb-wrapper relative bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden flex flex-col';
-        wrapper.dataset.pageNumber = String(i);
+      const ctx = canvas.getContext('2d');
+      await page.render({ canvasContext: ctx, viewport }).promise;
 
-        const canvas = document.createElement('canvas');
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        canvas.className = 'max-w-full max-h-full object-contain block mx-auto bg-slate-100';
-
-        const pageLabel = document.createElement('div');
-        pageLabel.className =
-          'px-1.5 py-1 text-[10px] text-slate-500 border-t border-slate-100 bg-slate-50 text-right';
-        pageLabel.textContent = 'Page ' + i;
-
-        wrapper.appendChild(canvas);
-        wrapper.appendChild(pageLabel);
-        previewThumbnails.appendChild(wrapper);
-
-        const ctx = canvas.getContext('2d');
-        await page.render({ canvasContext: ctx, viewport }).promise;
-      }
-
-      // PRO++: page controls + crop + watermark
       setupPageControls();
       if (toolSlug === 'crop-pdf') {
         setupCropBoxes();
@@ -724,23 +788,172 @@
       }
     }
 
+    async function renderPdfPreview(file) {
+      if (!window['pdfjsLib']) return;
+
+      resetPreview();
+      showPreviewPanel();
+
+      previewFilename.textContent = file.name || 'document.pdf';
+      previewSize.textContent = humanFileSize(file.size);
+
+      const uint8 = new Uint8Array(await file.arrayBuffer());
+      try {
+        pdfDoc = await pdfjsLib.getDocument({ data: uint8 }).promise;
+      } catch (e) {
+        console.error('PDF preview error:', e);
+        resetPreview();
+        return;
+      }
+
+      pdfPageCount = pdfDoc.numPages || 0;
+      currentPreviewPage = 1;
+      previewPagesCount.textContent =
+        pdfPageCount + (pdfPageCount === 1 ? ' page' : ' pages');
+
+      await renderSinglePage(currentPreviewPage);
+      ensurePageNavControls();
+      updatePageIndicator();
+    }
+
+    function syncHiddenInputsFromArray() {
+      if (!hiddenFileInput) return;
+
+      const dt = new DataTransfer();
+      (currentFilesArray || []).forEach(f => dt.items.add(f));
+      hiddenFileInput.files = dt.files;
+
+      try {
+        if (fileInput) {
+          const dt2 = new DataTransfer();
+          (currentFilesArray || []).forEach(f => dt2.items.add(f));
+          fileInput.files = dt2.files;
+        }
+      } catch (err) {
+        console.warn('Unable to sync visible file input order', err);
+      }
+    }
+
+    function renderFileList() {
+      if (!fileListContainer) return;
+
+      fileListContainer.innerHTML = '';
+
+      if (!currentFilesArray || !currentFilesArray.length) {
+        return;
+      }
+
+      currentFilesArray.forEach((f, index) => {
+        const row = document.createElement('div');
+        row.className =
+          'flex items-center justify-between text-xs bg-slate-50 border border-slate-100 rounded-lg px-3 py-1.5 cursor-move';
+        row.draggable = true;
+        row.dataset.index = String(index);
+
+        const left = document.createElement('div');
+        left.className = 'flex items-center gap-2';
+
+        const handle = document.createElement('span');
+        handle.textContent = '☰';
+        handle.className = 'text-slate-400 text-sm';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'truncate max-w-[120px] sm:max-w-[180px]';
+        nameSpan.textContent = f.name;
+
+        left.appendChild(handle);
+        left.appendChild(nameSpan);
+
+        const sizeSpan = document.createElement('span');
+        sizeSpan.className = 'text-[10px] text-slate-400';
+        sizeSpan.textContent = humanFileSize(f.size);
+
+        row.appendChild(left);
+        row.appendChild(sizeSpan);
+
+        row.addEventListener('dragstart', (e) => {
+          dragIndex = index;
+          row.classList.add('opacity-60');
+          e.dataTransfer.effectAllowed = 'move';
+        });
+
+        row.addEventListener('dragend', () => {
+          dragIndex = null;
+          row.classList.remove('opacity-60');
+        });
+
+        row.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          row.classList.add('border-violet-300');
+        });
+
+        row.addEventListener('dragleave', () => {
+          row.classList.remove('border-violet-300');
+        });
+
+        row.addEventListener('drop', (e) => {
+          e.preventDefault();
+          row.classList.remove('border-violet-300');
+          if (dragIndex === null || dragIndex === index) return;
+
+          const moved = currentFilesArray.splice(dragIndex, 1)[0];
+          currentFilesArray.splice(index, 0, moved);
+          dragIndex = null;
+
+          renderFileList();
+          syncHiddenInputsFromArray();
+
+          if (currentFilesArray.length) {
+            currentFile = currentFilesArray[0];
+            if (currentFile) {
+              const isPdf = currentFile.type === 'application/pdf' ||
+                currentFile.name.toLowerCase().endsWith('.pdf');
+              if (isPdf) {
+                renderPdfPreview(currentFile);
+              } else {
+                resetPreview();
+                showPreviewPanel();
+                previewFilename.textContent = currentFile.name;
+                previewSize.textContent = humanFileSize(currentFile.size);
+                previewPagesCount.textContent = 'Preview not available for this file type';
+              }
+            }
+          }
+        });
+
+        fileListContainer.appendChild(row);
+      });
+    }
+
     function handleFilesSelected(files) {
       if (!files || !files.length) return;
-      currentFile = files[0]; // For preview we use the first file only
 
-      if (fileInfo) {
+      if (toolSlug === 'merge-pdf' || toolSlug === 'image-to-pdf') {
+        currentFilesArray = Array.from(files);
+        currentFile = currentFilesArray[0];
+        syncHiddenInputsFromArray();
+        renderFileList();
+      } else {
+        currentFilesArray = [files[0]];
+        currentFile = files[0];
+        syncHiddenInputsFromArray();
+        if (fileListContainer) fileListContainer.innerHTML = '';
+      }
+
+      if (fileInfo && currentFile) {
         fileInfo.classList.remove('hidden');
-        fileInfo.textContent = files.length === 1
-          ? `${currentFile.name} · ${humanFileSize(currentFile.size)}`
-          : `${files.length} files selected · previewing first`;
-      }
 
-      // Copy the file(s) into the real form file input (supports multiple)
-      const dt = new DataTransfer();
-      for (let f of files) {
-        dt.items.add(f);
+        if (toolSlug === 'merge-pdf' || toolSlug === 'image-to-pdf') {
+          fileInfo.textContent =
+            currentFilesArray.length === 1
+              ? currentFile.name + ' · ' + humanFileSize(currentFile.size)
+              : currentFilesArray.length + ' files selected · first: ' +
+                currentFile.name;
+        } else {
+          fileInfo.textContent =
+            currentFile.name + ' · ' + humanFileSize(currentFile.size);
+        }
       }
-      hiddenFileInput.files = dt.files;
 
       const isPdf = currentFile.type === 'application/pdf' ||
         currentFile.name.toLowerCase().endsWith('.pdf');
@@ -755,17 +968,11 @@
       }
     }
 
-    // Upload area click -> trigger input (FIX: avoid double dialog)
+    // Upload area click / drag & drop
     if (uploadArea && fileInput) {
       uploadArea.addEventListener('click', function (e) {
-        // If the click already originated on the real input, don't trigger another click
         if (e.target === fileInput) return;
         fileInput.click();
-      });
-
-      // IMPORTANT: stop click on the input from bubbling to the uploadArea
-      fileInput.addEventListener('click', function (e) {
-        e.stopPropagation();
       });
 
       uploadArea.addEventListener('dragover', function (e) {
@@ -907,7 +1114,6 @@
         const wRect = w.getBoundingClientRect();
         const bRect = box.getBoundingClientRect();
 
-        // relative to wrapper
         const x = (bRect.left - wRect.left) / wRect.width;
         const y = (bRect.top - wRect.top) / wRect.height;
         const width = bRect.width / wRect.width;
@@ -948,12 +1154,9 @@
           hiddenKeepFilename.value = keepFilenameCheckbox.checked ? '1' : '0';
         }
 
-        // PRO++ extras
         collectPageOrderAndDeletes();
         collectCropRegions();
       });
     }
   });
 </script>
-
-{% endblock %}
