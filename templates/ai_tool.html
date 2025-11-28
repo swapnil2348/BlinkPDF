@@ -1,44 +1,454 @@
 {% extends "base.html" %}
 
-{% block title %}{{ tool.title }} - BlinkPDF{% endblock %}
+{% block title %}{{ tool.title }} — BlinkPDF AI{% endblock %}
+{% block meta %}{{ tool.desc }}{% endblock %}
 
 {% block content %}
-<section class="max-w-6xl mx-auto py-16">
+<section class="bg-gradient-to-b from-violet-50 to-white py-10">
+  <div class="max-w-6xl mx-auto px-4">
 
-    <h1 class="text-3xl font-bold text-slate-900 mb-2">
-        {{ tool.title }}
-    </h1>
-
-    <p class="text-slate-600 mb-8">
-        This AI tool is now connected. Backend AI integration will be applied next.
-    </p>
-
-    <div class="grid gap-6 md:grid-cols-2">
-
-        <!-- Input -->
-        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow">
-            <h2 class="font-semibold mb-2">Input</h2>
-
-            <textarea rows="8"
-                class="w-full p-4 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-violet-600"
-                placeholder="Paste text or instructions here..."></textarea>
-
-            <button
-                class="mt-4 px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-semibold">
-                Process
-            </button>
+    <!-- Header -->
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
+      <div>
+        <div class="inline-flex items-center gap-3 px-3 py-1 rounded-full bg-violet-100 text-violet-700 text-xs font-medium mb-3">
+          <div class="w-6 h-6 rounded-full bg-white flex items-center justify-center shadow-sm border border-violet-200">
+            <img src="{{ url_for('static', filename='icons/' ~ tool.icon) }}"
+                 alt="{{ tool.title }} icon"
+                 class="w-4 h-4">
+          </div>
+          <span>{{ tool.slug | replace('-', ' ') | title }}</span>
         </div>
-
-        <!-- Output -->
-        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow">
-            <h2 class="font-semibold mb-2">Output</h2>
-
-            <div class="w-full p-4 rounded-xl border border-dashed border-slate-300 min-h-[200px]">
-                AI response will appear here...
-            </div>
-        </div>
-
+        <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">
+          {{ tool.title }}
+        </h1>
+        <p class="text-sm sm:text-base text-slate-600 max-w-xl">
+          {{ tool.desc }}
+        </p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          AI powered
+        </span>
+        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-50 text-slate-600 border border-slate-100">
+          <span class="w-1.5 h-1.5 rounded-full bg-violet-400"></span>
+          Secure & private
+        </span>
+        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-50 text-slate-600 border border-slate-100">
+          No signup
+        </span>
+      </div>
     </div>
 
+    <!-- Main layout -->
+    <div class="grid lg:grid-cols-2 gap-6 lg:gap-8 items-start">
+
+      <!-- LEFT: Upload + Options -->
+      <div class="space-y-6">
+
+        <!-- Upload card -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-5">
+          <h2 class="text-sm font-semibold text-slate-800 mb-3 flex items-center justify-between">
+            Upload PDF or files
+            <span class="text-[11px] uppercase tracking-wide text-slate-400">
+              Step 1
+            </span>
+          </h2>
+
+          <div id="ai-upload-area"
+               class="relative border border-dashed border-violet-200 rounded-xl p-4 sm:p-6 text-center cursor-pointer hover:border-violet-400 transition group">
+            <input type="file"
+                   id="ai-file-input"
+                   name="files"
+                   accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
+                   multiple
+                   class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+            <div class="flex flex-col items-center gap-3 pointer-events-none">
+              <div class="w-11 h-11 rounded-2xl bg-violet-50 flex items-center justify-center border border-violet-100 group-hover:bg-violet-100 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-violet-500" fill="none"
+                     viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M12 16V4m0 0L8 8m4-4 4 4M6 16h12a2 2 0 0 1 2 2v1a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-1a2 2 0 0 1 2-2Z" />
+                </svg>
+              </div>
+              <div class="space-y-0.5">
+                <p class="text-sm font-medium text-slate-900">
+                  Click to upload file(s) or drag & drop
+                </p>
+                <p class="text-[11px] text-slate-500">
+                  PDFs work best. You can also upload DOCX, images or plain text.
+                </p>
+              </div>
+              <div id="ai-file-info"
+                   class="hidden text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-full px-3 py-1 mt-1 max-w-full truncate">
+                No file selected
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Advanced settings card -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-5">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-semibold text-slate-800">
+              AI settings
+            </h2>
+            <span class="text-[11px] uppercase tracking-wide text-slate-400">
+              Optional
+            </span>
+          </div>
+
+          <div class="space-y-4 text-xs sm:text-sm text-slate-700">
+
+            {% if tool.slug == 'ai-editor' %}
+              <!-- AI Editor modes -->
+              <div class="space-y-1">
+                <label class="font-medium">Editing mode</label>
+                <div class="grid grid-cols-2 gap-2 mt-1">
+                  <button type="button"
+                          data-mode="rewrite"
+                          class="ai-mode-btn px-3 py-2 rounded-xl border border-violet-500 bg-violet-50 text-violet-700 text-xs font-medium">
+                    Rewrite & improve
+                  </button>
+                  <button type="button"
+                          data-mode="fix-grammar"
+                          class="ai-mode-btn px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium">
+                    Fix grammar
+                  </button>
+                  <button type="button"
+                          data-mode="simplify"
+                          class="ai-mode-btn px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium">
+                    Simplify text
+                  </button>
+                  <button type="button"
+                          data-mode="explain"
+                          class="ai-mode-btn px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium">
+                    Explain section
+                  </button>
+                </div>
+              </div>
+            {% elif tool.slug == 'ai-summarizer' %}
+              <!-- Summarizer options -->
+              <div class="space-y-1">
+                <label for="summary_length" class="font-medium">
+                  Summary length
+                </label>
+                <select id="summary_length"
+                        class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-400">
+                  <option value="short">Short (bullet points)</option>
+                  <option value="medium" selected>Medium</option>
+                  <option value="detailed">Detailed</option>
+                </select>
+                <p class="text-[11px] text-slate-400 mt-1">
+                  Works best on articles, reports and long PDFs.
+                </p>
+              </div>
+            {% elif tool.slug == 'ai-chat' %}
+              <!-- Chat PDF options -->
+              <div class="space-y-1">
+                <label class="font-medium">Answer style</label>
+                <div class="flex flex-wrap gap-2 mt-1">
+                  <label class="inline-flex items-center gap-2 text-[11px] text-slate-600">
+                    <input type="radio" name="chat_style" value="concise" class="text-violet-600" checked>
+                    <span>Concise</span>
+                  </label>
+                  <label class="inline-flex items-center gap-2 text-[11px] text-slate-600">
+                    <input type="radio" name="chat_style" value="detailed" class="text-violet-600">
+                    <span>Detailed</span>
+                  </label>
+                </div>
+              </div>
+            {% elif tool.slug == 'ai-translate' %}
+              <!-- Translate options -->
+              <div class="space-y-2">
+                <div class="space-y-1">
+                  <label class="font-medium">From language</label>
+                  <select id="lang_from"
+                          class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-400">
+                    <option value="auto" selected>Auto detect</option>
+                    <option value="en">English</option>
+                    <option value="hi">Hindi</option>
+                    <option value="es">Spanish</option>
+                    <option value="fr">French</option>
+                  </select>
+                </div>
+                <div class="space-y-1">
+                  <label class="font-medium">To language</label>
+                  <select id="lang_to"
+                          class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-400">
+                    <option value="en">English</option>
+                    <option value="hi">Hindi</option>
+                    <option value="es">Spanish</option>
+                    <option value="fr">French</option>
+                  </select>
+                </div>
+              </div>
+            {% elif tool.slug == 'ai-table-extract' %}
+              <!-- Table extract options -->
+              <div class="space-y-2">
+                <div class="space-y-1">
+                  <label class="font-medium">Output format</label>
+                  <select id="table_format"
+                          class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-400">
+                    <option value="csv">CSV</option>
+                    <option value="xlsx">Excel (.xlsx)</option>
+                    <option value="markdown">Markdown table</option>
+                  </select>
+                </div>
+                <p class="text-[11px] text-slate-400">
+                  AI will try to clean messy tables and merge multi-line rows.
+                </p>
+              </div>
+            {% endif %}
+
+            <!-- Generic checkbox -->
+            <div class="pt-2 border-t border-dashed border-slate-100 mt-2">
+              <label class="inline-flex items-center gap-2 text-[11px] text-slate-500">
+                <input type="checkbox"
+                       id="ai_keep_context"
+                       class="rounded border-slate-300 text-violet-600 focus:ring-violet-500/40"
+                       checked>
+                <span>Let AI use full document context for better answers</span>
+              </label>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Run AI button -->
+        <button
+          type="button"
+          id="ai-run-btn"
+          class="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold py-3.5 shadow-sm shadow-violet-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition">
+          <span class="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5" fill="none"
+                 viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M5 12h14m0 0-4-4m4 4-4 4" />
+            </svg>
+            <span>Run {{ tool.title }}</span>
+          </span>
+        </button>
+        <p class="text-[11px] text-slate-400 text-center">
+          AI processing will be added on the server side. Frontend is fully ready.
+        </p>
+      </div>
+
+      <!-- RIGHT: AI Console / Output -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-5 flex flex-col h-full">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h2 class="text-sm font-semibold text-slate-800">
+              {% if tool.slug == 'ai-chat' %}
+                Chat with your document
+              {% elif tool.slug == 'ai-summarizer' %}
+                Summary output
+              {% elif tool.slug == 'ai-translate' %}
+                Translation output
+              {% elif tool.slug == 'ai-table-extract' %}
+                Extracted tables
+              {% else %}
+                AI output
+              {% endif %}
+            </h2>
+            <p class="text-[11px] text-slate-500">
+              Results will appear here after you upload a file and run the tool.
+            </p>
+          </div>
+          <div class="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-1 border border-slate-100">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            <span class="text-[11px] text-slate-500">Local UI · AI backend coming soon</span>
+          </div>
+        </div>
+
+        <!-- For chat-like tools vs single-output tools -->
+        {% if tool.slug == 'ai-chat' %}
+          <!-- Chat style console -->
+          <div id="ai-chat-log" class="flex-1 min-h-[260px] rounded-xl border border-slate-200 bg-slate-50/60 overflow-auto p-3 space-y-3 text-xs">
+            <div class="text-[11px] text-slate-500 text-center mt-10">
+              Upload a PDF and ask your first question about it.
+            </div>
+          </div>
+          <div class="mt-3 flex flex-col gap-2">
+            <div class="flex items-center gap-2">
+              <textarea id="ai-chat-input"
+                        rows="2"
+                        class="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-400"
+                        placeholder="Ask a question about your PDF..."></textarea>
+              <button type="button"
+                      id="ai-chat-send"
+                      class="flex items-center justify-center rounded-xl px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold">
+                Send
+              </button>
+            </div>
+            <p class="text-[10px] text-slate-400 text-right">
+              Answers are simulated in this demo. Connect your AI API in the backend to go live.
+            </p>
+          </div>
+        {% else %}
+          <!-- Single-output console -->
+          <div class="flex-1 min-h-[260px] rounded-xl border border-slate-200 bg-slate-50/60 overflow-auto">
+            <textarea id="ai-output"
+                      class="w-full h-full border-0 bg-transparent resize-none px-3 py-3 text-xs sm:text-sm text-slate-800"
+                      placeholder="AI result will appear here..."></textarea>
+          </div>
+
+          {% if tool.slug != 'ai-translate' %}
+          <div class="mt-3">
+            <label class="text-[11px] text-slate-500 mb-1 block">Custom instructions to AI (optional)</label>
+            <textarea id="ai-extra-instructions"
+                      rows="2"
+                      class="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-400"
+                      placeholder="E.g. use simple language, keep bullet points, focus on key decisions, etc."></textarea>
+          </div>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const uploadArea = document.getElementById("ai-upload-area");
+    const fileInput = document.getElementById("ai-file-input");
+    const fileInfo = document.getElementById("ai-file-info");
+    const runBtn = document.getElementById("ai-run-btn");
+    const output = document.getElementById("ai-output");
+    const modeButtons = document.querySelectorAll(".ai-mode-btn");
+
+    let currentMode = "rewrite";
+
+    // AI editor modes (for ai-editor)
+    modeButtons.forEach(btn => {
+      btn.addEventListener("click", () => {
+        modeButtons.forEach(b => {
+          b.classList.remove("border-violet-500", "bg-violet-50", "text-violet-700");
+          b.classList.add("border-slate-200");
+        });
+        btn.classList.add("border-violet-500", "bg-violet-50", "text-violet-700");
+        btn.classList.remove("border-slate-200");
+        currentMode = btn.dataset.mode || "rewrite";
+      });
+    });
+
+    function humanFileSize(bytes) {
+      if (!bytes || isNaN(bytes)) return "0 MB";
+      const mb = bytes / (1024 * 1024);
+      return (mb < 1 ? mb.toFixed(2) : mb.toFixed(1)) + " MB";
+    }
+
+    function handleFiles(files) {
+      if (!files || !files.length) return;
+      const first = files[0];
+      if (fileInfo) {
+        fileInfo.classList.remove("hidden");
+        fileInfo.textContent = files.length === 1
+          ? `${first.name} · ${humanFileSize(first.size)}`
+          : `${files.length} files selected · showing ${first.name}`;
+      }
+    }
+
+    if (uploadArea && fileInput) {
+      uploadArea.addEventListener("click", function (e) {
+        if (e.target === fileInput) return;
+        fileInput.click();
+      });
+
+      uploadArea.addEventListener("dragover", function (e) {
+        e.preventDefault();
+        uploadArea.classList.add("border-violet-400", "bg-violet-50/40");
+      });
+
+      uploadArea.addEventListener("dragleave", function (e) {
+        e.preventDefault();
+        uploadArea.classList.remove("border-violet-400", "bg-violet-50/40");
+      });
+
+      uploadArea.addEventListener("drop", function (e) {
+        e.preventDefault();
+        uploadArea.classList.remove("border-violet-400", "bg-violet-50/40");
+        const files = e.dataTransfer.files;
+        if (files && files.length) {
+          fileInput.files = files;
+          handleFiles(files);
+        }
+      });
+
+      fileInput.addEventListener("change", function (e) {
+        handleFiles(e.target.files);
+      });
+    }
+
+    // Run button – frontend-only demo
+    if (runBtn) {
+      runBtn.addEventListener("click", function () {
+        if (!fileInput || !fileInput.files || !fileInput.files.length) {
+          alert("Please upload at least one file first.");
+          return;
+        }
+
+        {% if tool.slug == 'ai-chat' %}
+        alert("Chat backend not connected yet. This is a UI-only demo.");
+        {% else %}
+        if (output) {
+          output.value =
+            "⚠️ AI backend is not connected yet.\n\n" +
+            "The UI is ready. Once you connect your OpenAI or other LLM API " +
+            "in the Flask backend, this button can send the uploaded file(s) " +
+            "and settings to your AI endpoint and show the real result here.";
+        }
+        {% endif %}
+      });
+    }
+
+    // Simple dummy chat behaviour for ai-chat
+    const chatLog = document.getElementById("ai-chat-log");
+    const chatInput = document.getElementById("ai-chat-input");
+    const chatSend = document.getElementById("ai-chat-send");
+
+    if (chatLog && chatInput && chatSend) {
+      function addChatBubble(role, text) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "flex " + (role === "user" ? "justify-end" : "justify-start");
+
+        const bubble = document.createElement("div");
+        bubble.className =
+          "max-w-[80%] px-3 py-2 rounded-2xl text-xs leading-relaxed " +
+          (role === "user"
+            ? "bg-violet-600 text-white rounded-br-sm"
+            : "bg-white border border-slate-200 text-slate-800 rounded-bl-sm");
+
+        bubble.textContent = text;
+        wrapper.appendChild(bubble);
+        chatLog.appendChild(wrapper);
+        chatLog.scrollTop = chatLog.scrollHeight;
+      }
+
+      function sendMessage() {
+        const text = chatInput.value.trim();
+        if (!text) return;
+        addChatBubble("user", text);
+        chatInput.value = "";
+
+        setTimeout(() => {
+          addChatBubble(
+            "assistant",
+            "This is a demo AI reply. Once the backend is connected, real answers about your PDF will appear here."
+          );
+        }, 500);
+      }
+
+      chatSend.addEventListener("click", sendMessage);
+      chatInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+    }
+  });
+</script>
 {% endblock %}
